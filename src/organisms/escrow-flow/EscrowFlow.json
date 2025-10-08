@@ -1,0 +1,17 @@
+{
+  "name": "EscrowFlow",
+  "type": "organism",
+  "location": "src/organisms/escrow-flow/EscrowFlow.tsx",
+  "version": "1.0.0",
+  "props": {
+    "onCreate": {
+      "type": "(payload: EscrowInit) => void | Promise<void>",
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "internal": ["@/components/organisms/create-escrow-form", "@/types/escrow"],
+    "external": ["react"]
+  }
+}
+

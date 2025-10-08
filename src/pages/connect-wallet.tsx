@@ -26,7 +26,15 @@ const ConnectWalletPage: React.FC = () => {
 
         <WalletConnectPanel onConnected={() => { /* hook for future navigation */ }} />
 
-        <div className="mt-12 text-center">
+        <div className="mt-12 flex flex-col items-center gap-4">
+          <div className="flex gap-3">
+            <Button asChild>
+              <Link to="/deals">Go to Deals</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link to="/create-escrow">Create Escrow</Link>
+            </Button>
+          </div>
           <Button variant="link" asChild>
             <a href="https://solana.com/ecosystem/wallets" target="_blank" rel="noreferrer">
               Don’t have a wallet? Explore options →

@@ -1,0 +1,16 @@
+{
+  "name": "BaseLayout",
+  "type": "template",
+  "location": "src/templates/base-layout/BaseLayout.tsx",
+  "version": "1.0.0",
+  "props": {
+    "header": { "type": "ReactNode", "optional": true },
+    "footer": { "type": "ReactNode", "optional": true },
+    "children": { "type": "ReactNode" }
+  },
+  "dependencies": {
+    "internal": [],
+    "external": ["react"]
+  }
+}
+

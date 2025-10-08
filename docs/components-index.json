@@ -1,0 +1,20 @@
+[
+  { "name": "Button", "type": "atom", "location": "src/atoms/button/Button.tsx", "version": "1.0.0" },
+  { "name": "Input", "type": "atom", "location": "src/atoms/input/Input.tsx", "version": "1.0.0" },
+  { "name": "Badge", "type": "atom", "location": "src/atoms/badge/Badge.tsx", "version": "1.0.0" },
+  { "name": "FormField", "type": "molecule", "location": "src/molecules/form-field/FormField.tsx", "version": "1.0.0" },
+  { "name": "EscrowFlow", "type": "organism", "location": "src/organisms/escrow-flow/EscrowFlow.tsx", "version": "1.0.0" },
+  { "name": "CreateEscrowForm", "type": "organism", "location": "src/components/organisms/create-escrow-form.tsx", "version": "1.0.0" },
+  { "name": "BaseLayout", "type": "template", "location": "src/templates/base-layout/BaseLayout.tsx", "version": "1.0.0" },
+  { "name": "Home", "type": "page", "location": "src/pages/home/Home.tsx", "version": "1.0.0" },
+  { "name": "WalletConnect", "type": "page", "location": "src/pages/wallet-connect/WalletConnect.tsx", "version": "1.0.0" },
+  { "name": "DealOverview", "type": "page", "location": "src/pages/deal-overview/DealOverview.tsx", "version": "1.0.0" },
+  { "name": "DisputeResolution", "type": "page", "location": "src/pages/dispute-resolution/DisputeResolution.tsx", "version": "1.0.0" },
+  { "name": "CreateEscrowPage", "type": "page", "location": "src/pages/CreateEscrow.tsx", "version": "1.0.0" },
+  { "name": "Deals", "type": "page", "location": "src/pages/Deals.tsx", "version": "1.0.0" },
+  { "name": "EvidenceUpload", "type": "page", "location": "src/pages/EvidenceUpload.tsx", "version": "1.0.0" },
+  { "name": "Dispute", "type": "page", "location": "src/pages/Dispute.tsx", "version": "1.0.0" },
+  { "name": "Profile", "type": "page", "location": "src/pages/Profile.tsx", "version": "1.0.0" },
+  { "name": "Notifications", "type": "page", "location": "src/pages/Notifications.tsx", "version": "1.0.0" }
+]
+

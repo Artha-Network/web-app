@@ -64,7 +64,9 @@ const GetStarted = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button variant="secondary" className="w-full">Create Escrow</Button>
+                <Link to="/create-escrow">
+                  <Button variant="secondary" className="w-full">Create Escrow</Button>
+                </Link>
               </CardContent>
             </Card>
 
@@ -80,7 +82,9 @@ const GetStarted = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button variant="outline" className="w-full">Start Trading</Button>
+                <Link to="/deals">
+                  <Button variant="outline" className="w-full">Start Trading</Button>
+                </Link>
               </CardContent>
             </Card>
           </div>
@@ -129,10 +133,12 @@ const GetStarted = () => {
 
           {/* CTA */}
           <div className="text-center">
-            <Button size="lg" className="bg-gradient-primary hover:shadow-glow transition-all duration-300 group">
-              Launch App
-              <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </Button>
+            <Link to="/connect-wallet">
+              <Button size="lg" className="bg-gradient-primary hover:shadow-glow transition-all duration-300 group">
+                Launch App
+                <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </Link>
           </div>
         </div>
       </div>

@@ -1,0 +1,12 @@
+{
+  "name": "DisputePage",
+  "type": "page",
+  "location": "src/pages/Dispute.tsx",
+  "version": "1.0.0",
+  "props": {},
+  "dependencies": {
+    "internal": ["@/components/ui/card", "@/components/ui/button"],
+    "external": ["react", "react-router-dom"]
+  }
+}
+

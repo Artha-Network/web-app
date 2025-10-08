@@ -1,0 +1,12 @@
+{
+  "name": "NotificationsPage",
+  "type": "page",
+  "location": "src/pages/Notifications.tsx",
+  "version": "1.0.0",
+  "props": {},
+  "dependencies": {
+    "internal": ["@/components/ui/card"],
+    "external": ["react", "react-router-dom"]
+  }
+}
+

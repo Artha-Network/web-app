@@ -1,0 +1,12 @@
+{
+  "name": "DealOverview",
+  "type": "page",
+  "location": "src/pages/deal-overview/DealOverview.tsx",
+  "version": "1.0.0",
+  "props": {},
+  "dependencies": {
+    "internal": ["@/pages/DealOverview"],
+    "external": ["react"]
+  }
+}
+

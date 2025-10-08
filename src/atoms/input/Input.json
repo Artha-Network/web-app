@@ -1,0 +1,12 @@
+{
+  "name": "Input",
+  "type": "atom",
+  "location": "src/atoms/input/Input.tsx",
+  "version": "1.0.0",
+  "props": "See '@/components/ui/input'",
+  "dependencies": {
+    "internal": ["@/components/ui/input"],
+    "external": ["react"]
+  }
+}
+

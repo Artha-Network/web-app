@@ -1,0 +1,22 @@
+{
+  "name": "SolanaUtils",
+  "type": "utils",
+  "location": "src/utils/solana.ts",
+  "version": "1.0.0",
+  "exports": {
+    "functions": [
+      {
+        "name": "isValidSolanaAddress",
+        "params": [
+          { "name": "addr", "type": "string" }
+        ],
+        "returns": "boolean"
+      }
+    ]
+  },
+  "dependencies": {
+    "internal": [],
+    "external": []
+  }
+}
+

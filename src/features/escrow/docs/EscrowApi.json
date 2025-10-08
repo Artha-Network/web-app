@@ -1,0 +1,26 @@
+{
+  "name": "EscrowApi",
+  "type": "feature-api",
+  "location": "src/features/escrow/api.ts",
+  "version": "1.0.0",
+  "exports": {
+    "functions": [
+      {
+        "name": "createEscrow",
+        "params": [
+          {
+            "name": "input",
+            "type": "EscrowInit"
+          }
+        ],
+        "returns": "Promise<{ dealId: string }>"
+      }
+    ],
+    "types": ["CreateEscrowResponse"]
+  },
+  "dependencies": {
+    "internal": ["@/types/escrow"],
+    "external": []
+  }
+}
+

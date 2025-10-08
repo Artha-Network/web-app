@@ -1,0 +1,12 @@
+{
+  "name": "Button",
+  "type": "atom",
+  "location": "src/atoms/button/Button.tsx",
+  "version": "1.0.0",
+  "props": "See '@/components/ui/button'",
+  "dependencies": {
+    "internal": ["@/components/ui/button"],
+    "external": ["react"]
+  }
+}
+
