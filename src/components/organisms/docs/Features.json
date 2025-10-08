@@ -1,0 +1,91 @@
+{
+  "name": "Features",
+  "type": "organism",
+  "category": "marketing",
+  "description": "Feature showcase grid displaying key platform capabilities with icons and descriptions",
+  "filePath": "src/components/organisms/Features.tsx",
+  "version": "1.0.0",
+  "status": "stable",
+  "props": [],
+  "composition": {
+    "atoms": [
+      {
+        "name": "Icons",
+        "import": "lucide-react",
+        "usage": "Shield, Brain, DollarSign, Lock, Zap, Users"
+      }
+    ],
+    "molecules": [
+      {
+        "name": "Feature Card",
+        "description": "Icon + title + description combination"
+      }
+    ]
+  },
+  "features": [
+    {
+      "title": "Blockchain Security",
+      "icon": "Shield",
+      "description": "All transactions are secured on the Solana blockchain, ensuring transparency and immutability"
+    },
+    {
+      "title": "AI-Powered Arbitration",
+      "icon": "Brain",
+      "description": "Our advanced AI system provides fair and quick dispute resolution when needed"
+    },
+    {
+      "title": "Micro-Escrow Solutions",
+      "icon": "DollarSign",
+      "description": "Perfect for small transactions starting from just $10, making escrow accessible for everyone"
+    },
+    {
+      "title": "Smart Contract Protection",
+      "icon": "Lock",
+      "description": "Automated escrow management through secure smart contracts eliminates manual intervention"
+    },
+    {
+      "title": "Instant Settlement",
+      "icon": "Zap",
+      "description": "Quick release of funds upon transaction completion with blockchain-verified confirmation"
+    },
+    {
+      "title": "Community Trust",
+      "icon": "Users",
+      "description": "Built-in reputation system helps you transact with confidence in our decentralized network"
+    }
+  ],
+  "designTokens": {
+    "colors": [
+      "bg-background",
+      "text-foreground",
+      "text-muted-foreground",
+      "bg-primary/10",
+      "text-primary"
+    ],
+    "spacing": [
+      "py-20",
+      "gap-12",
+      "gap-8"
+    ],
+    "typography": [
+      "text-3xl",
+      "md:text-4xl",
+      "text-xl",
+      "font-semibold"
+    ]
+  },
+  "responsive": {
+    "mobile": "Single column",
+    "tablet": "2 columns (md:grid-cols-2)",
+    "desktop": "3 columns (lg:grid-cols-3)"
+  },
+  "accessibility": {
+    "wcagLevel": "AA",
+    "features": [
+      "Semantic HTML",
+      "Proper heading hierarchy",
+      "High contrast text"
+    ]
+  },
+  "lastUpdated": "2025-01-26"
+}
