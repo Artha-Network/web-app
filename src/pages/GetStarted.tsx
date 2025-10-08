@@ -46,7 +46,9 @@ const GetStarted = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button className="w-full">Connect Wallet</Button>
+                <Link to="/connect-wallet">
+                  <Button className="w-full">Connect Wallet</Button>
+                </Link>
               </CardContent>
             </Card>
 

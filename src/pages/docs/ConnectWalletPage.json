@@ -1,0 +1,15 @@
+{
+  "name": "ConnectWalletPage",
+  "type": "page",
+  "location": "src/pages/connect-wallet.tsx",
+  "version": "1.0.0",
+  "props": {},
+  "dependencies": {
+    "internal": [
+      "@/components/organisms/wallet-connect-panel",
+      "@/components/ui/button"
+    ],
+    "external": ["react", "react-router-dom", "lucide-react"]
+  }
+}
+

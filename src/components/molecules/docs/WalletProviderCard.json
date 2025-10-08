@@ -1,0 +1,17 @@
+{
+  "name": "WalletProviderCard",
+  "type": "molecule",
+  "location": "src/components/molecules/wallet-provider-card.tsx",
+  "version": "1.0.0",
+  "props": {
+    "id": { "type": "\"phantom\" | \"solflare\" | \"backpack\"", "required": true },
+    "name": { "type": "string", "required": true },
+    "installed": { "type": "boolean", "required": true },
+    "installUrl": { "type": "string", "required": true },
+    "onConnected": { "type": "(address: string, id: \"phantom\" | \"solflare\" | \"backpack\") => void", "required": false }
+  },
+  "dependencies": {
+    "internal": ["@/components/ui/card", "@/components/ui/button", "@/components/ui/badge"],
+    "external": ["react", "lucide-react"]
+  }
+}

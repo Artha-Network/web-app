@@ -1,0 +1,20 @@
+{
+  "name": "WalletConnectPanel",
+  "type": "organism",
+  "location": "src/components/organisms/wallet-connect-panel.tsx",
+  "version": "1.0.0",
+  "props": {
+    "onConnected": {
+      "type": "(address: string, provider: \"phantom\" | \"solflare\" | \"backpack\") => void",
+      "required": false
+    }
+  },
+  "dependencies": {
+    "internal": [
+      "@/components/molecules/wallet-provider-card",
+      "@/components/ui/card",
+      "@/components/ui/button"
+    ],
+    "external": ["react", "lucide-react"]
+  }
+}
