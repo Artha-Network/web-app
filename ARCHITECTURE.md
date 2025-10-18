@@ -345,6 +345,21 @@ When restructuring existing components:
 - [Tailwind CSS Documentation](https://tailwindcss.com/)
 - [React Best Practices](https://react.dev/learn)
 
+### Wallet Adapter Integration (Frontend)
+
+- The `SolanaWalletProvider` wraps the entire app (see `src/providers/SolanaWalletProvider.tsx`).
+- Supports Phantom and Solflare wallets via `@solana/wallet-adapter`.
+- Connection flow:
+  1. User clicks “Connect Wallet” (header/hero)
+  2. Wallet Adapter handles provider selection and permission
+  3. On success, the public key is available via `useWallet().publicKey`
+  4. App logs/temporarily uses `walletAddress = publicKey?.toBase58()`
+  5. Redirects to Dashboard
+
+- Future backend integration:
+  - Register `walletAddress` in PostgreSQL via `actions-server` endpoint (`POST /api/users`)
+  - Associate with user reputation & deal history in `core-domain`
+
 ---
 
 Last Updated: 2025-01-26

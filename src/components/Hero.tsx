@@ -1,9 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { ArrowRight, Shield, Zap, Brain } from "lucide-react";
+import { Shield, Zap, Brain } from "lucide-react";
+import { useModalContext } from "@/context/ModalContext";
 import heroBg from "@/assets/hero-bg.jpg";
 
 const Hero = () => {
+  const { openWalletModal } = useModalContext();
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Background */}
@@ -61,14 +63,14 @@ const Hero = () => {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Link to="/get-started">
-              <Button size="lg" className="bg-gradient-primary hover:shadow-glow transition-all duration-300 group">
-                Get Started
-                <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </Button>
-            </Link>
+            <button
+              onClick={openWalletModal}
+              className="px-5 py-3 rounded-full border border-gray-300 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm hover:bg-white/90 dark:hover:bg-gray-700 transition text-gray-900 dark:text-gray-100 shadow-md"
+            >
+              Connect Wallet
+            </button>
             <Link to="/documentation">
-              <Button variant="outline" size="lg" className="border-primary/30 hover:bg-primary/5 transition-all duration-300">
+              <Button variant="outline" size="lg" className="border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition">
                 View Documentation
               </Button>
             </Link>

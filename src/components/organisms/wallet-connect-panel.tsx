@@ -2,7 +2,6 @@ import React from "react";
 import { WalletProviderCard } from "@/components/molecules/wallet-provider-card";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
 type WalletProviderId = "phantom" | "solflare" | "backpack";
 import { CheckCircle2, Info } from "lucide-react";
 
@@ -59,20 +58,7 @@ export const WalletConnectPanel: React.FC<WalletConnectPanelProps> = ({ onConnec
                 </>
               )}
             </div>
-            <div className="flex gap-2">
-              {address ? (
-                <Button className="bg-gradient-primary" asChild>
-                  <Link to="/create-escrow">Continue</Link>
-                </Button>
-              ) : (
-                <Button disabled className="bg-gradient-primary">Continue</Button>
-              )}
-              <Button variant="outline" asChild>
-                <a href="https://solana.com/ecosystem/wallets" target="_blank" rel="noreferrer">
-                  Learn about wallets
-                </a>
-              </Button>
-            </div>
+            <div className="flex gap-2" />
           </CardContent>
         </Card>
       </div>

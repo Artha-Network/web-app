@@ -1,21 +1,25 @@
 <<<<<<< HEAD
+
 # web-app
+
 End-user UI; feature-first. Uses wallet adapter; calls actions-server for tx.
 
 ---
 
-```md
+````md
 # Web App (Next.js)
 
 End-user UI for creating, funding, disputing, and resolving escrows. Uses wallet-adapter and calls the **Actions Server** to build transactions.
 
 ## Key Features
+
 - Feature-first routing (`/features/escrow`, `/features/disputes`, etc.)
 - Wallet adapters (Phantom/Solflare/Backpack)
 - Evidence upload (Arweave/IPFS)
 - Deal receipts + rationale link (from Arbiter)
 
 ## Scripts
+
 ```bash
 pnpm i
 pnpm dev       # localhost:3000
@@ -81,16 +85,18 @@ Every component has dual documentation:
 See [COMPONENT_DOCUMENTATION_GUIDE.md](./COMPONENT_DOCUMENTATION_GUIDE.md) for how to document components.
 
 ## Project Structure
-
 ```
+````
+
 src/components/
-├── atoms/ui/           # Basic UI primitives (shadcn/ui)
-├── molecules/          # Simple combinations
-├── organisms/          # Complex sections
-│   ├── Hero.tsx
-│   ├── Features.tsx
-│   └── docs/          # Component documentation
-└── templates/          # Page layouts
+├── atoms/ui/ # Basic UI primitives (shadcn/ui)
+├── molecules/ # Simple combinations
+├── organisms/ # Complex sections
+│ ├── Hero.tsx
+│ ├── Features.tsx
+│ └── docs/ # Component documentation
+└── templates/ # Page layouts
+
 ```
 
 ## Technology Stack
@@ -101,3 +107,4 @@ src/components/
 - shadcn/ui (component library)
 - React Router DOM (routing)
 >>>>>>> 7947178 (chore: initialize web-app UI project)
+```
