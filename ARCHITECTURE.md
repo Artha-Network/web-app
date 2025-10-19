@@ -345,6 +345,17 @@ When restructuring existing components:
 - [Tailwind CSS Documentation](https://tailwindcss.com/)
 - [React Best Practices](https://react.dev/learn)
 
+### Database Layer — Supabase Integration
+
+The Artha Network uses Supabase (managed PostgreSQL) as the persistence layer.
+
+- Backend (actions-server): Uses service_role key for privileged operations.
+- Frontend (web-app): Uses anon key for safe inserts/reads via `src/lib/supabaseClient.ts`.
+- core-domain: Defines shared schema validation using Zod.
+- dev-infra: Stores initialization SQL and migration documentation.
+
+Supabase replaces the local Docker Postgres environment while maintaining schema compatibility.
+
 ### Wallet Adapter Integration (Frontend)
 
 - The `SolanaWalletProvider` wraps the entire app (see `src/providers/SolanaWalletProvider.tsx`).

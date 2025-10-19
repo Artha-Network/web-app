@@ -44,6 +44,7 @@
     "@solana/wallet-adapter-react-ui": "^0.9.35",
     "@solana/wallet-adapter-wallets": "^0.19.28",
     "@solana/web3.js": "^1.95.3",
+    "@supabase/supabase-js": "^2.75.1",
     "@tanstack/react-query": "^5.83.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

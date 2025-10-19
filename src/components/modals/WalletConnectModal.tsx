@@ -2,6 +2,7 @@ import React from "react";
 import { X } from "lucide-react";
 import { useWallet } from "@/hooks/useWallet";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/supabaseClient";
 
 /**
  * WalletConnectModal
@@ -29,7 +30,15 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ open, on
       await connect();
       const address = publicKey?.toBase58();
       console.log("Wallet connected:", address);
-      console.log("TODO: Register user in Postgres backend once ready.");
+      if (address) {
+        const { error } = await supabase
+          .from("users")
+          .upsert({ wallet_address: address })
+          .select();
+        if (error) {
+          console.error("Supabase upsert error:", error.message);
+        }
+      }
       onOpenChange(false);
       navigate("/dashboard", { replace: true });
     } catch (e) {
