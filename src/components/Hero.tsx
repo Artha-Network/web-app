@@ -2,10 +2,27 @@ import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { Shield, Zap, Brain } from "lucide-react";
 import { useModalContext } from "@/context/ModalContext";
+import { useEvent } from "@/hooks/useEvent";
 import heroBg from "@/assets/hero-bg.jpg";
 
 const Hero = () => {
   const { openWalletModal } = useModalContext();
+  const { trackEvent } = useEvent();
+
+  const handleGetStartedClick = () => {
+    trackEvent('cta_get_started', { 
+      cta_type: 'connect_wallet',
+      source: 'hero_button' 
+    });
+    openWalletModal();
+  };
+
+  const handleDocumentationClick = () => {
+    trackEvent('cta_get_started', { 
+      cta_type: 'view_docs',
+      source: 'hero_button' 
+    });
+  };
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Background */}
@@ -64,15 +81,33 @@ const Hero = () => {
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <button
-              onClick={openWalletModal}
-              className="px-5 py-3 rounded-full border border-gray-300 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm hover:bg-white/90 dark:hover:bg-gray-700 transition text-gray-900 dark:text-gray-100 shadow-md"
+              onClick={handleGetStartedClick}
+              className="px-8 py-4 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-semibold text-lg shadow-lg hover:shadow-xl transform hover:scale-105"
             >
-              Connect Wallet
+              Get Started
             </button>
-            <Link to="/documentation">
+            <Link to="/docs" onClick={handleDocumentationClick}>
               <Button variant="outline" size="lg" className="border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition">
                 View Documentation
               </Button>
+            </Link>
+          </div>
+
+          {/* Quick Links */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-8">
+            <Link 
+              to="/wallet-connect" 
+              onClick={() => trackEvent('cta_get_started', { cta_type: 'wallet_connect', source: 'hero_quick_link' })}
+              className="text-sm text-muted-foreground hover:text-primary transition-colors"
+            >
+              Connect Wallet →
+            </Link>
+            <Link 
+              to="/deals" 
+              onClick={() => trackEvent('cta_get_started', { cta_type: 'view_deals', source: 'hero_quick_link' })}
+              className="text-sm text-muted-foreground hover:text-primary transition-colors"
+            >
+              Browse Deals →
             </Link>
           </div>
 

@@ -1,4 +1,5 @@
 import { FC } from "react";
+import { Link } from "react-router-dom";
 import { Bell, Diamond } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -37,24 +38,24 @@ export const HeaderBar: FC<HeaderBarProps> = ({
 
       <div className="flex flex-1 justify-end gap-8">
         <nav className="flex items-center gap-9" aria-label="Primary">
-          <a
-            href="#"
+          <Link
+            to="/dashboard"
             className="text-gray-600 text-sm font-medium leading-normal hover:text-blue-600 transition-colors"
           >
             Dashboard
-          </a>
-          <a
-            href="#"
+          </Link>
+          <Link
+            to="/deals"
             className="text-gray-600 text-sm font-medium leading-normal hover:text-blue-600 transition-colors"
           >
             Deals
-          </a>
-          <a
-            href="#"
+          </Link>
+          <Link
+            to="/profile"
             className="text-gray-600 text-sm font-medium leading-normal hover:text-blue-600 transition-colors"
           >
             Profile
-          </a>
+          </Link>
         </nav>
 
         <button

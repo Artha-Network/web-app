@@ -11,7 +11,7 @@ import { PhantomWalletAdapter, SolflareWalletAdapter } from "@solana/wallet-adap
 const wallets = [new PhantomWalletAdapter(), new SolflareWalletAdapter()];
 
 export const SolanaWalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const endpoint = (import.meta as any)?.env?.VITE_SOLANA_RPC ?? "https://api.devnet.solana.com";
+  const endpoint = (import.meta as any)?.env?.VITE_SOLANA_RPC ?? "http://127.0.0.1:8899";
   return (
     <ConnectionProvider endpoint={endpoint}>
       <WalletProvider wallets={wallets} autoConnect>

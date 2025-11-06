@@ -2,7 +2,8 @@ import React from "react";
 import { X } from "lucide-react";
 import { useWallet } from "@/hooks/useWallet";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/lib/supabaseClient";
+import { getConfiguredCluster, SolanaCluster } from "@/utils/solana";
+import { useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
 
 /**
  * WalletConnectModal
@@ -17,32 +18,90 @@ export interface WalletConnectModalProps {
 const btnBase =
   "w-full flex items-center justify-center gap-3 bg-white/80 dark:bg-white/10 hover:bg-white/90 dark:hover:bg-white/20 border border-gray-300 dark:border-gray-700 p-3 rounded-xl font-medium transition-all duration-300 transform hover:-translate-y-0.5 text-gray-800 dark:text-gray-100";
 
+interface WalletIdentityResponse {
+  userId: string;
+  walletAddress: string;
+  network: SolanaCluster;
+  lastSeenAt?: string;
+}
+
+const USER_ID_STORAGE_KEY = "artha:user-id";
+
+const persistUserIdentity = (payload: WalletIdentityResponse) => {
+  try {
+    localStorage.setItem(USER_ID_STORAGE_KEY, payload.userId);
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn("Unable to persist user identity", error);
+  }
+};
+
 export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ open, onOpenChange }) => {
-  const { connect, select, publicKey } = useWallet();
+  const { publicKey, connect, select } = useWallet();
+  const { wallets } = useSolanaWallet();
   const navigate = useNavigate();
 
   if (!open) return null;
 
   const handleConnect = async (provider: "phantom" | "solflare" | "other") => {
-    const name = provider === "phantom" ? "Phantom" : provider === "solflare" ? "Solflare" : undefined;
-    if (name) select(name);
     try {
-      await connect();
-      const address = publicKey?.toBase58();
-      console.log("Wallet connected:", address);
-      if (address) {
-        const { error } = await supabase
-          .from("users")
-          .upsert({ wallet_address: address })
-          .select();
-        if (error) {
-          console.error("Supabase upsert error:", error.message);
+      // For "other", let the user choose from available wallets
+      if (provider === "other") {
+        await connect();
+      } else {
+        // Try to select specific wallet
+        const walletName = provider === "phantom" ? "Phantom" : "Solflare";
+        const targetWallet = wallets.find(wallet => 
+          wallet.adapter.name.toLowerCase().includes(provider)
+        );
+        
+        if (targetWallet) {
+          select(targetWallet.adapter.name);
+          await connect();
+        } else {
+          // Fallback to any available wallet
+          console.warn(`${walletName} not found, using first available wallet`);
+          await connect();
         }
       }
-      onOpenChange(false);
-      navigate("/dashboard", { replace: true });
-    } catch (e) {
-      console.error("Wallet connect failed", e);
+      
+      // Wait for publicKey to be available
+      setTimeout(async () => {
+        const address = publicKey?.toBase58();
+        console.log("Wallet connected:", address);
+        
+        if (address) {
+          const network = getConfiguredCluster();
+          try {
+            const ACTIONS_BASE_URL = import.meta.env.VITE_ACTIONS_SERVER_URL || 'http://localhost:4000';
+            const response = await fetch(`${ACTIONS_BASE_URL}/auth/upsert-wallet`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ walletAddress: address, network }),
+            });
+
+            if (!response.ok) {
+              const message = await response.text();
+              console.error("Wallet upsert failed:", message);
+            } else {
+              const payload = (await response.json()) as WalletIdentityResponse;
+              persistUserIdentity(payload);
+            }
+          } catch (error) {
+            console.error("Wallet upsert request failed", error);
+          }
+        }
+        
+        onOpenChange(false);
+        navigate("/dashboard", { replace: true });
+      }, 100);
+      
+    } catch (error) {
+      console.error("Wallet connect failed", error);
+      // Show user-friendly error message
+      alert("Failed to connect wallet. Please make sure your wallet is installed and try again.");
     }
   };
 

@@ -4,15 +4,15 @@
  */
 import { createClient } from "@supabase/supabase-js";
 
-const url = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
-const anon = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string | undefined;
+const env = (import.meta as any).env ?? {};
+const url = (env.VITE_SUPABASE_URL ?? env.SUPABASE_URL) as string | undefined;
+const anon = (env.VITE_SUPABASE_ANON_KEY ?? env.SUPABASE_ANON_KEY) as string | undefined;
 
 if (!url || !anon) {
   // eslint-disable-next-line no-console
-  console.warn("Supabase env missing: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY");
+  console.warn("Supabase env missing: SUPABASE_URL / SUPABASE_ANON_KEY");
 }
 
 export const supabase = createClient(url ?? "", anon ?? "");
 
 export default supabase;
-

@@ -1,4 +1,8 @@
-import { FC } from "react";
+import { FC, useMemo, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useConnection } from '@solana/wallet-adapter-react';
+import { LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { Banknote, Gavel, CheckCircle2, ArrowRightCircle, Repeat, RefreshCw, Wallet, Globe, DollarSign } from "lucide-react";
 import HeaderBar from "@/components/organisms/HeaderBar";
 import DashboardGreeting from "@/components/organisms/DashboardGreeting";
 import DealActions from "@/components/molecules/DealActions";
@@ -6,59 +10,175 @@ import ActiveDealsGrid from "@/components/organisms/ActiveDealsGrid";
 import ReputationScoreCard from "@/components/molecules/ReputationScoreCard";
 import NotificationsList from "@/components/organisms/NotificationsList";
 import RecentActivityTimeline from "@/components/organisms/RecentActivityTimeline";
-import { Banknote, Gavel, CheckCircle2, Star, Award } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { fetchDeals } from "@/api/mockApi";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useWallet } from "@/hooks/useWallet";
-
-// Deals now fetched via mock API (temporary)
+import { useWalletConnection } from "@/hooks/useWalletConnection";
+import { useMyDeals, useRecentDealEvents, statusToBadge } from "@/hooks/useDeals";
+import { useEvent } from "@/hooks/useEvent";
+import { getConfiguredCluster } from '@/utils/solana';
+import type { DealCardProps } from "@/components/molecules/DealCard";
 
 const mockNotifications = [
   {
     id: "n1",
-    icon: <Banknote className="text-green-600 w-7 h-7" aria-hidden />,
-    title: "Deal with Sarah Johnson funded!",
-    date: "2024-07-28",
+    icon: <Wallet className="text-blue-600 w-7 h-7" aria-hidden />,
+    title: "Wallet connected successfully",
+    date: new Date().toLocaleDateString(),
   },
   {
     id: "n2",
+    icon: <Banknote className="text-green-600 w-7 h-7" aria-hidden />,
+    title: "Deal activity will appear here",
+    date: new Date().toLocaleDateString(),
+  },
+  {
+    id: "n3",
     icon: <Gavel className="text-red-600 w-7 h-7" aria-hidden />,
-    title: "Dispute initiated by Emily Chen!",
-    date: "2024-07-25",
+    title: "Stay tuned for dispute updates",
+    date: new Date().toLocaleDateString(),
   },
 ];
 
-const mockActivities = [
+const fallbackActivities = [
   {
-    id: "a1",
+    id: "placeholder-fund",
     icon: <CheckCircle2 />, // styled via colorClass
-    title: 'Deal "Secure Sale" completed!',
-    date: "2024-07-28",
+    title: "Funding events will appear after transactions confirm.",
+    date: new Date().toLocaleDateString(),
     colorClass: "text-green-600",
   },
   {
-    id: "a2",
-    icon: <Star />,
-    title: "New reputation tier unlocked!",
-    date: "2024-07-25",
+    id: "placeholder-release",
+    icon: <ArrowRightCircle />,
+    title: "Release confirmations are tracked automatically.",
+    date: new Date().toLocaleDateString(),
     colorClass: "text-blue-600",
   },
   {
-    id: "a3",
-    icon: <Award />,
-    title: '"Master Arbitrator" badge earned!',
-    date: "2024-07-20",
+    id: "placeholder-refund",
+    icon: <Repeat />,
+    title: "Refunds will be listed once executed.",
+    date: new Date().toLocaleDateString(),
     colorClass: "text-purple-600",
   },
 ];
 
+const shortAddress = (value?: string | null) => {
+  if (!value) return "—";
+  return `${value.slice(0, 4)}…${value.slice(-4)}`;
+};
+
 const Dashboard: FC = () => {
   const navigate = useNavigate();
-  const { publicKey } = useWallet();
+  const { publicKey, connected, disconnect, wallet } = useWallet();
+  const { connection } = useConnection();
+  const { trackEvent } = useEvent();
+  const walletConnection = useWalletConnection();
+  
+  const [solBalance, setSolBalance] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [cluster] = useState(getConfiguredCluster());
+  const [debugInfo, setDebugInfo] = useState<{
+    rpcEndpoint: string;
+    walletAddress: string;
+    balanceSource: string;
+  } | null>(null);
+  
   const address = publicKey?.toBase58();
-  const userName = address ? address.slice(0, 6) + "…" + address.slice(-4) : "User";
-  const { data: deals = [] } = useQuery({ queryKey: ["deals", address], queryFn: () => fetchDeals(address) });
+  const userName = address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "User";
+
+  // Track wallet connection events
+  useEffect(() => {
+    if (connected && publicKey) {
+      trackEvent('wallet_connected', {
+        wallet_type: wallet?.adapter?.name,
+        network: cluster,
+        wallet_address: publicKey.toString()
+      });
+    }
+  }, [connected, publicKey, wallet, cluster, trackEvent]);
+
+  // Fetch wallet balances
+  const fetchWalletData = async () => {
+    if (!publicKey || !connected) return;
+    
+    setIsLoading(true);
+    try {
+      // Fetch SOL balance
+      const solBalance = await connection.getBalance(publicKey);
+      setSolBalance(solBalance / LAMPORTS_PER_SOL);
+      
+      // Store debug info
+      setDebugInfo({
+        rpcEndpoint: connection.rpcEndpoint,
+        walletAddress: publicKey.toBase58(),
+        balanceSource: `Fetched from RPC: ${connection.rpcEndpoint}`,
+      });
+      
+      console.log('🔍 WALLET DEBUG:', {
+        rpcEndpoint: connection.rpcEndpoint,
+        walletAddress: publicKey.toBase58(),
+        solBalance: solBalance / LAMPORTS_PER_SOL,
+        cluster: cluster,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Error fetching wallet data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchWalletData();
+  }, [publicKey, connected, connection]);
+
+  const handleRefresh = () => {
+    trackEvent('wallet_refresh', { wallet_address: publicKey?.toString() });
+    fetchWalletData();
+  };
+
+  const handleDisconnect = () => {
+    trackEvent('wallet_disconnected', { wallet_address: publicKey?.toString() });
+    disconnect();
+  };
+
+  const { data: dealsData } = useMyDeals();
+  const { data: eventsData } = useRecentDealEvents(6);
+
+  const dealCards: ReadonlyArray<DealCardProps & { id: string }> = useMemo(() => {
+    if (!address || !dealsData) return [];
+    return dealsData.deals.map((deal) => {
+      const counterparty = deal.buyer_wallet === address ? deal.seller_wallet : deal.buyer_wallet;
+      const deadline = deal.deliver_deadline ? new Date(deal.deliver_deadline).toLocaleDateString() : "—";
+      return {
+        id: deal.id,
+        title: `Deal ${deal.id.slice(0, 6)}`,
+        counterparty: shortAddress(counterparty),
+        amountUsd: Number(deal.price_usd ?? 0),
+        deadline,
+        status: statusToBadge(deal.status) as DealCardProps["status"],
+      };
+    });
+  }, [address, dealsData]);
+
+  const recentActivities = useMemo(() => {
+    if (!eventsData || !eventsData.length) return fallbackActivities;
+    return eventsData.map((evt) => {
+      const instruction = evt.instruction.toUpperCase();
+      const icon = instruction === "FUND" ? <CheckCircle2 /> : instruction === "RELEASE" ? <ArrowRightCircle /> : <Repeat />;
+      const colorClass = instruction === "FUND" ? "text-green-600" : instruction === "RELEASE" ? "text-blue-600" : "text-purple-600";
+      return {
+        id: evt.id,
+        icon,
+        title: `${instruction} confirmed (${evt.tx_sig.slice(0, 6)}…)`,
+        date: evt.created_at ? new Date(evt.created_at).toLocaleString() : "",
+        colorClass,
+      };
+    });
+  }, [eventsData]);
 
   return (
     <div
@@ -75,12 +195,136 @@ const Dashboard: FC = () => {
           <div className="layout-content-container flex flex-col max-w-[920px] flex-1">
             <DashboardGreeting name={userName} />
 
+            {/* Wallet Status Card */}
+            <Card className="mx-4 mb-6">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Wallet className="w-5 h-5" />
+                    Wallet Status
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRefresh}
+                      disabled={isLoading}
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDisconnect}
+                    >
+                      Disconnect
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Wallet</label>
+                    <p className="font-semibold">{wallet?.adapter?.name || 'Unknown'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Network</label>
+                    <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
+                      <Globe className="w-3 h-3 mr-1" />
+                      {cluster.charAt(0).toUpperCase() + cluster.slice(1)}
+                    </Badge>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">SOL Balance</label>
+                    <div className="flex items-center gap-2">
+                      {isLoading ? (
+                        <div className="h-6 w-24 bg-muted animate-pulse rounded" />
+                      ) : (
+                        <span className="font-semibold">
+                          {solBalance?.toFixed(4) || '0.0000'} SOL
+                        </span>
+                      )}
+                      <DollarSign className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                    {solBalance !== null && solBalance < 0.01 && (
+                      <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                        ⚠️ Low balance - you may need SOL for fees
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Wallet Verification Status */}
+                <div className="mt-4 pt-4 border-t">
+                  {walletConnection.isVerifying ? (
+                    <div className="flex items-center gap-2 text-sm text-blue-600">
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Verifying wallet ownership...</span>
+                    </div>
+                  ) : walletConnection.isVerified ? (
+                    <div className="flex items-center gap-2 text-sm text-green-600">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Wallet verified and authenticated</span>
+                      {walletConnection.userId && (
+                        <Badge variant="secondary" className="ml-2">User ID: {walletConnection.userId.slice(0, 8)}</Badge>
+                      )}
+                    </div>
+                  ) : walletConnection.error ? (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2 text-sm text-red-600">
+                        <span>⚠️ {walletConnection.error}</span>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={walletConnection.retry}
+                        className="w-fit"
+                      >
+                        Retry Verification
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+                
+                {/* Debug Info Panel */}
+                {debugInfo && (
+                  <div className="mt-4 pt-4 border-t bg-blue-50 dark:bg-blue-950 p-3 rounded-md">
+                    <p className="text-xs font-semibold text-blue-800 dark:text-blue-200 mb-2">🔍 Debug Information</p>
+                    <div className="space-y-1 text-xs text-blue-700 dark:text-blue-300">
+                      <div className="flex justify-between">
+                        <span className="font-medium">RPC Endpoint:</span>
+                        <span className="font-mono">{debugInfo.rpcEndpoint}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-medium">Wallet Address:</span>
+                        <span className="font-mono">{debugInfo.walletAddress.slice(0, 8)}...{debugInfo.walletAddress.slice(-6)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-medium">Balance Source:</span>
+                        <span className="font-mono text-[10px]">{debugInfo.balanceSource}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-medium">Configured Cluster:</span>
+                        <span className="font-mono">{cluster}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <DealActions onCreateEscrow={() => navigate("/escrow/step1")} />
 
             <h2 className="text-gray-900 text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
               Your Active Deals
             </h2>
-            <ActiveDealsGrid deals={deals} />
+            {dealCards.length === 0 ? (
+              <div className="px-4 py-6 text-sm text-muted-foreground">No deals found for this wallet yet.</div>
+            ) : (
+              <ActiveDealsGrid deals={dealCards} />
+            )}
           </div>
 
           <aside className="layout-content-container flex flex-col w-[360px] gap-4">
@@ -94,7 +338,7 @@ const Dashboard: FC = () => {
             <h2 className="text-gray-900 text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
               Recent Activity
             </h2>
-            <RecentActivityTimeline items={mockActivities} />
+            <RecentActivityTimeline items={recentActivities} />
           </aside>
         </main>
       </div>

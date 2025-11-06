@@ -21,9 +21,8 @@ export const RecentActivityTimeline: FC<RecentActivityTimelineProps> = ({ items 
   return (
     <div className="grid grid-cols-[40px_1fr] gap-x-2 px-4">
       {items.map((it, idx) => (
-        <>
+        <div key={it.id} className="contents">
           <div
-            key={`${it.id}-rail`}
             className={"flex flex-col items-center gap-1 " + (idx === 0 ? "pt-3" : "") + (idx === items.length - 1 ? " pb-3" : "")}
           >
             {idx > 0 && <div className="w-[1.5px] bg-gray-200 h-2" />}
@@ -32,11 +31,11 @@ export const RecentActivityTimeline: FC<RecentActivityTimelineProps> = ({ items 
             </div>
             {idx < items.length - 1 && <div className="w-[1.5px] bg-gray-200 h-2 grow" />}
           </div>
-          <div key={it.id} className="flex flex-1 flex-col py-3">
+          <div className="flex flex-1 flex-col py-3">
             <p className="text-gray-900 text-base font-medium leading-normal">{it.title}</p>
             <p className="text-gray-600 text-base font-normal leading-normal">{it.date}</p>
           </div>
-        </>
+        </div>
       ))}
     </div>
   );

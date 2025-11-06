@@ -1,16 +1,13 @@
 import { FC, ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  AlertCircle,
-  BadgeCheck,
-  CheckCircle2,
-  Hourglass,
-} from "lucide-react";
+import { AlertCircle, BadgeCheck, CheckCircle2, Hourglass, PackageCheck, Undo2 } from "lucide-react";
 
-export type DealStatus = "INIT" | "FUNDED" | "DISPUTED" | "RESOLVED";
+export type DealStatus = "INIT" | "FUNDED" | "DISPUTED" | "RESOLVED" | "RELEASED" | "REFUNDED" | "DELIVERED";
 
 export interface DealCardProps {
+  readonly dealId?: string;
   readonly title: string;
   readonly counterparty: string;
   readonly amountUsd: number;
@@ -28,6 +25,12 @@ const statusIcon = (status: DealStatus): ReactNode => {
       return <AlertCircle className="text-red-600 w-7 h-7" aria-hidden />;
     case "RESOLVED":
       return <BadgeCheck className="text-blue-600 w-7 h-7" aria-hidden />;
+    case "RELEASED":
+      return <BadgeCheck className="text-emerald-600 w-7 h-7" aria-hidden />;
+    case "REFUNDED":
+      return <Undo2 className="text-purple-600 w-7 h-7" aria-hidden />;
+    case "DELIVERED":
+      return <PackageCheck className="text-amber-600 w-7 h-7" aria-hidden />;
     default:
       return null;
   }
@@ -39,19 +42,34 @@ const statusBadge = (status: DealStatus) => {
     FUNDED: "rounded-full px-3 py-1 text-xs font-semibold text-green-800 bg-green-100 uppercase",
     DISPUTED: "rounded-full px-3 py-1 text-xs font-semibold text-red-800 bg-red-100 uppercase",
     RESOLVED: "rounded-full px-3 py-1 text-xs font-semibold text-blue-800 bg-blue-100 uppercase",
+    RELEASED: "rounded-full px-3 py-1 text-xs font-semibold text-emerald-800 bg-emerald-100 uppercase",
+    REFUNDED: "rounded-full px-3 py-1 text-xs font-semibold text-purple-800 bg-purple-100 uppercase",
+    DELIVERED: "rounded-full px-3 py-1 text-xs font-semibold text-amber-800 bg-amber-100 uppercase",
   };
   return map[status];
 };
 
 export const DealCard: FC<DealCardProps> = ({
+  dealId,
   title,
   counterparty,
   amountUsd,
   deadline,
   status,
 }) => {
+  const navigate = useNavigate();
+
+  const handleClick = () => {
+    if (dealId) {
+      navigate(`/deal/${dealId}`);
+    }
+  };
+
   return (
-    <Card className="group relative flex flex-col gap-3 rounded-xl bg-white p-4 shadow-sm border border-gray-200 transition-all duration-300 hover:shadow-md hover:border-blue-300">
+    <Card 
+      className="group relative flex flex-col gap-3 rounded-xl bg-white p-4 shadow-sm border border-gray-200 transition-all duration-300 hover:shadow-md hover:border-blue-300 cursor-pointer"
+      onClick={handleClick}
+    >
       <div className="relative z-10 flex items-center justify-between">
         {statusIcon(status)}
         <div className={statusBadge(status)}>{status}</div>
@@ -67,4 +85,3 @@ export const DealCard: FC<DealCardProps> = ({
 };
 
 export default DealCard;
-

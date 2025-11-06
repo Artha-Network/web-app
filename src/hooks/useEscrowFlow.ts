@@ -50,6 +50,15 @@ export function useEscrowFlow() {
     setData((prev) => ({ ...prev, [key]: value }));
   }, []);
 
+  const reset = useCallback(() => {
+    setData(defaultData);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
   const fee = useMemo(() => {
     const amt = typeof data.amount === "number" ? data.amount : 0;
     return Number(((amt * 0.005) || 0).toFixed(2));
@@ -64,6 +73,5 @@ export function useEscrowFlow() {
   const next = useCallback((current: 1 | 2) => goTo((current + 1) as 2 | 3), [goTo]);
   const back = useCallback((current: 2 | 3) => goTo((current - 1) as 1 | 2), [goTo]);
 
-  return { data, setData, setField, fee, total, goTo, next, back } as const;
+  return { data, setData, setField, reset, fee, total, goTo, next, back } as const;
 }
-

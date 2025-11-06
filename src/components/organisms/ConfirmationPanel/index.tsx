@@ -16,6 +16,7 @@ export interface ConfirmationPanelProps {
   readonly onToggleTerms: (v: boolean) => void;
   readonly onBack: () => void;
   readonly onGenerate: () => void;
+  readonly actionDisabled?: boolean;
 }
 
 /**
@@ -30,6 +31,7 @@ export const ConfirmationPanel: FC<ConfirmationPanelProps> = ({
   onToggleTerms,
   onBack,
   onGenerate,
+  actionDisabled,
 }) => {
   return (
     <div className="mt-12 bg-white dark:bg-gray-950 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800">
@@ -100,6 +102,7 @@ export const ConfirmationPanel: FC<ConfirmationPanelProps> = ({
           className="w-full sm:w-auto flex items-center justify-center gap-2"
           aria-label="Generate Deal"
           style={{ backgroundColor: "#635bff" }}
+          disabled={actionDisabled}
         >
           Generate Deal
           <ArrowRight className="w-4 h-4" />
@@ -110,4 +113,3 @@ export const ConfirmationPanel: FC<ConfirmationPanelProps> = ({
 };
 
 export default ConfirmationPanel;
-

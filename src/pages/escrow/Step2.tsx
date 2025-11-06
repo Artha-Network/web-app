@@ -1,155 +1,354 @@
-import { FC, useMemo } from "react";
-import { Input } from "@/components/ui/input";
+import { FC, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import EscrowFlowTemplate from "@/templates/EscrowFlowTemplate";
 import EscrowStepLayout from "@/components/organisms/EscrowStepLayout";
 import StepIndicator from "@/components/molecules/StepIndicator";
-import SummaryCard from "@/components/molecules/SummaryCard";
-import { ArrowLeft, ArrowRight, Calendar } from "lucide-react";
+import { ArrowRight, ArrowLeft, Shield, Clock, DollarSign, CheckCircle2, Info, AlertTriangle, Loader } from "lucide-react";
 import { useEscrowFlow } from "@/hooks/useEscrowFlow";
+import { useEvent } from "@/hooks/useEvent";
+import { useWallet } from "@/hooks/useWallet";
+import { useAction } from "@/hooks/useAction";
+
+/**
+ * Step2 - Fund deal and deploy to Solana (Fund.tsx)
+ * 
+ * Purpose: fund deal
+ * Route: /escrow/fund/:id  (where :id is temporary local ID)
+ * Emits: fund_attempt, fund_success, fund_failed
+ * Storage: update deal status to FUNDED
+ * AI: none yet
+ * Solana: Initialize escrow PDA, fund vault
+ * Links: /deal/:deal_id (the actual blockchain deal_id from response)
+ */
 
 const Step2: FC = () => {
-  const { data, setField, fee, total, back, next } = useEscrowFlow();
+  const { publicKey } = useWallet();
+  const { data, back, next } = useEscrowFlow();
+  const { trackEvent } = useEvent();
+  const navigate = useNavigate();
+  const { mutate: initiateEscrow, isPending: isInitiating, error: initiateError } = useAction("initiate");
+  
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const maskedSeller = useMemo(() => {
-    const a = data.counterpartyAddress;
-    if (!a) return "Unknown";
-    return a.length > 8 ? `${a.slice(0, 4)}...${a.slice(-4)}` : a;
-  }, [data.counterpartyAddress]);
+  // Track page view on mount
+  useEffect(() => {
+    trackEvent('view_funding', {
+      amount: data.amount,
+      counterparty: data.counterpartyAddress,
+      funding_method: data.fundingMethod,
+    });
+  }, [data.amount, data.counterpartyAddress, data.fundingMethod, trackEvent]);
 
-  return (
-    <EscrowFlowTemplate userName="Birochan Mainali">
-      <EscrowStepLayout progress={<StepIndicator current={2} />}>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-x-12 gap-y-6">
-          <div className="lg:col-span-2 space-y-6">
-            <div>
-              <Label htmlFor="escrow-amount" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Escrow Amount
-              </Label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="pointer-events-none absolute inset-y-0 left-0 pl-3 flex items-center">
-                  <span className="text-gray-500">$</span>
-                </div>
-                <Input
-                  id="escrow-amount"
-                  readOnly
-                  value={
-                    typeof data.amount === "number"
-                      ? data.amount.toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })
-                      : "0.00"
-                  }
-                  className="block w-full rounded-md pl-7 pr-12 bg-gray-100 dark:bg-gray-900 sm:text-sm"
-                />
-                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                  <span className="text-gray-500 sm:text-sm">USDC</span>
-                </div>
-              </div>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Artha Fee (0.5%): {fee.toFixed(2)} USDC</p>
-            </div>
+  // Calculate fees and totals
+  const platformFeeRate = 0.005; // 0.5%
+  const platformFee = typeof data.amount === 'number' ? Number((data.amount * platformFeeRate).toFixed(2)) : 0;
+  const gasFee = 0.01; // Estimated SOL for transaction fees
+  const totalCost = typeof data.amount === 'number' ? Number((data.amount + platformFee).toFixed(2)) : 0;
 
-            <div>
-              <Label htmlFor="deposit-wallet" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Deposit Wallet Preview
-              </Label>
-              <Input
-                id="deposit-wallet"
-                readOnly
-                value="ArthaVault-9aB...xyz"
-                className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 sm:text-sm"
-              />
-            </div>
+  // Format dates for display
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "Not set";
+    return new Date(dateString).toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
 
-            <div>
-              <Label htmlFor="funding-method" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Funding Method
-              </Label>
-              <Select value={data.fundingMethod} onValueChange={(v) => setField("fundingMethod", v as any)}>
-                <SelectTrigger id="funding-method" className="mt-1">
-                  <SelectValue placeholder="Select method" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Wallet">Wallet</SelectItem>
-                  <SelectItem value="Sponsored">Sponsored</SelectItem>
-                  <SelectItem value="Manual Transfer">Manual Transfer</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+  const handleFunding = async () => {
+    if (!publicKey) {
+      console.error('Wallet not connected');
+      return;
+    }
+    
+    setIsProcessing(true);
+    
+    try {
+      // Track funding attempt
+      trackEvent('fund_attempt', {
+        amount: data.amount,
+        platform_fee: platformFee,
+        total_cost: totalCost,
+      });
 
-            <div>
-              <Label htmlFor="delivery-deadline" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Delivery Deadline
-              </Label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <Input
-                  id="delivery-deadline"
-                  type="datetime-local"
-                  value={data.deliveryDeadline}
-                  onChange={(e) => setField("deliveryDeadline", e.target.value)}
-                  className="block w-full rounded-md pr-10 sm:text-sm"
-                />
-                <div className="pointer-events-none absolute inset-y-0 right-0 pr-3 flex items-center">
-                  <Calendar className="text-gray-400 w-4 h-4" />
-                </div>
-              </div>
-            </div>
+      // Convert dates to timestamps
+      const deliverBy = data.deliveryDeadline ? new Date(data.deliveryDeadline).getTime() / 1000 : undefined;
+      const disputeDeadline = data.completionDeadline ? new Date(data.completionDeadline).getTime() / 1000 : undefined;
 
-            <div>
-              <Label htmlFor="dispute-window" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Dispute Window (days after delivery)
-              </Label>
-              <Input
-                id="dispute-window"
-                type="number"
-                value={data.disputeWindowDays as number | ""}
-                onChange={(e) =>
-                  setField("disputeWindowDays", e.target.value === "" ? "" : Number(e.target.value))
-                }
-                className="mt-1 block w-full rounded-md sm:text-sm"
-                placeholder="e.g., 7"
-              />
-            </div>
-          </div>
+      // Create and initiate the escrow (this includes both creation and funding)
+      initiateEscrow({
+        counterparty: data.counterpartyAddress,
+        amount: typeof data.amount === 'number' ? data.amount : 0,
+        description: data.description,
+        deliverBy,
+        disputeDeadline,
+        feeBps: 50, // 0.5% fee (50 basis points)
+      }, {
+        onSuccess: (result) => {
+          // Track successful funding
+          trackEvent('fund_success', {
+            deal_id: result.dealId,
+            amount: data.amount,
+            platform_fee: platformFee,
+            transaction_signature: result.txSig,
+          });
 
-          <div className="lg:col-span-1">
-            <SummaryCard
-              buyerLabel="You"
-              sellerLabel={maskedSeller}
-              totalValueText={`${total.toFixed(2)} USDC`}
-              deadlineText={data.deliveryDeadline || data.completionDeadline || "–"}
-            />
+          // Store the blockchain deal ID
+          localStorage.setItem('lastCreatedDealId', result.dealId);
+
+          // Navigate to deal overview
+          navigate(`/deal/${result.dealId}`);
+        },
+        onError: (error) => {
+          console.error('Funding failed:', error);
+          trackEvent('fund_failed', {
+            error: error.message,
+            amount: data.amount,
+          });
+        },
+        onSettled: () => {
+          setIsProcessing(false);
+        }
+      });
+
+    } catch (error) {
+      console.error('Funding failed:', error);
+      trackEvent('fund_failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        amount: data.amount,
+      });
+      setIsProcessing(false);
+    }
+  };
+
+  const handleBack = () => {
+    trackEvent('fund_back_button_click');
+    back(2);
+  };
+
+  // Show wallet connection requirement
+  if (!publicKey) {
+    return (
+      <div className="container mx-auto px-6 py-8">
+        <div className="max-w-2xl mx-auto text-center">
+          <div className="bg-card p-8 rounded-lg border">
+            <Shield className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Wallet Required</h2>
+            <p className="text-muted-foreground mb-4">
+              Please connect your wallet to fund the escrow deal.
+            </p>
+            <Button onClick={() => navigate('/wallet-connect')}>
+              Connect Wallet
+            </Button>
           </div>
         </div>
+      </div>
+    );
+  }
 
-        <div className="border-t border-gray-200 dark:border-gray-800 px-0 pt-6 mt-6 bg-transparent flex justify-between items-center">
-          <Button
-            variant="outline"
-            onClick={() => back(2)}
-            className="flex items-center gap-2"
-            aria-label="Back to Step 1"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Step 1
-          </Button>
-          <Button
-            onClick={() => next(2)}
-            className="flex items-center gap-2"
-            aria-label="Review & Confirm"
-            style={{ backgroundColor: "#635bff" }}
-          >
-            Review & Confirm
-            <ArrowRight className="w-4 h-4" />
-          </Button>
+  return (
+    <EscrowFlowTemplate>
+      <EscrowStepLayout
+        headerTitle="Fund Your Deal"
+        headerSubtitle="Review the details and fund your escrow to deploy it on Solana"
+        progress={<StepIndicator current={2} />}
+        footer={
+          <div className="flex gap-4 pt-6">
+            <Button
+              variant="outline"
+              onClick={handleBack}
+              className="flex-1"
+              disabled={isInitiating || isProcessing}
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Setup
+            </Button>
+            
+            <Button
+              onClick={handleFunding}
+              className="flex-1"
+              disabled={isInitiating || isProcessing}
+            >
+              {isInitiating || isProcessing ? (
+                <>
+                  <Loader className="w-4 h-4 mr-2 animate-spin" />
+                  Creating Deal...
+                </>
+              ) : (
+                <>
+                  <Shield className="w-4 h-4 mr-2" />
+                  Fund Deal (${totalCost.toFixed(2)} USDC)
+                </>
+              )}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-6">
+          {/* Deal Summary */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-green-600" />
+                Deal Summary
+              </CardTitle>
+              <CardDescription>
+                Review your escrow details before funding
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Counterparty</Label>
+                  <p className="font-mono text-sm break-all bg-muted p-2 rounded">
+                    {data.counterpartyAddress}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Amount</Label>
+                  <p className="text-lg font-semibold">${data.amount} USDC</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Delivery Deadline</Label>
+                  <p>{formatDate(data.deliveryDeadline)}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Completion Deadline</Label>
+                  <p>{formatDate(data.completionDeadline)}</p>
+                </div>
+              </div>
+              
+              {data.description && (
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Description</Label>
+                  <p className="text-sm bg-muted p-3 rounded">{data.description}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Fee Breakdown */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <DollarSign className="w-5 h-5" />
+                Fee Breakdown
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span>Deal Amount</span>
+                  <span className="font-medium">${data.amount} USDC</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Platform Fee (0.5%)</span>
+                  <span className="font-medium">${platformFee.toFixed(2)} USDC</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Gas Fee (estimated)</span>
+                  <span className="font-medium">~{gasFee} SOL</span>
+                </div>
+                <div className="border-t pt-3">
+                  <div className="flex justify-between text-lg font-semibold">
+                    <span>Total USDC Cost</span>
+                    <span>${totalCost.toFixed(2)} USDC</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Funding Method */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="w-5 h-5" />
+                Funding Method
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3">
+                <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100">
+                  {data.fundingMethod}
+                </Badge>
+                <span className="text-sm text-muted-foreground">
+                  Funds will be held securely in an on-chain escrow vault
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Timeline */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5" />
+                Timeline
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-3 h-3 bg-green-600 rounded-full"></div>
+                  <div>
+                    <p className="font-medium">Deal Creation</p>
+                    <p className="text-sm text-muted-foreground">Now</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
+                  <div>
+                    <p className="font-medium">Delivery Deadline</p>
+                    <p className="text-sm text-muted-foreground">{formatDate(data.deliveryDeadline)}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-3 h-3 bg-orange-600 rounded-full"></div>
+                  <div>
+                    <p className="font-medium">Completion Deadline</p>
+                    <p className="text-sm text-muted-foreground">{formatDate(data.completionDeadline)}</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Security Notice */}
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Secure Escrow:</strong> Your funds will be held in a Solana smart contract. 
+              Neither party can access the funds until the deal is completed or resolved through arbitration.
+            </AlertDescription>
+          </Alert>
+
+          {/* Error Display */}
+          {initiateError && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Failed to create escrow: {initiateError.message}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Loading State */}
+          {(isInitiating || isProcessing) && (
+            <Alert>
+              <Loader className="h-4 w-4 animate-spin" />
+              <AlertDescription>
+                Creating your escrow deal on Solana. Please approve the transaction in your wallet...
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
       </EscrowStepLayout>
     </EscrowFlowTemplate>
