@@ -7,12 +7,12 @@ import { useWallet } from "@/hooks/useWallet";
 import { useDeal } from "@/hooks/useDeals";
 import { useAction } from "@/hooks/useAction";
 import { useEvent } from "@/hooks/useEvent";
-import { 
-  ArrowLeft, 
-  ExternalLink, 
-  Clock, 
-  User, 
-  DollarSign, 
+import {
+  ArrowLeft,
+  ExternalLink,
+  Clock,
+  User,
+  DollarSign,
   RefreshCw,
   AlertTriangle,
   CheckCircle,
@@ -60,9 +60,11 @@ const DealOverview: React.FC = () => {
   const releaseAction = useAction("release");
   const refundAction = useAction("refund");
 
-  const isBuyer = walletAddress && deal?.buyer_wallet === walletAddress;
-  const isSeller = walletAddress && deal?.seller_wallet === walletAddress;
+  const isBuyer = walletAddress && deal?.buyer_wallet?.toLowerCase() === walletAddress.toLowerCase();
+  const isSeller = walletAddress && deal?.seller_wallet?.toLowerCase() === walletAddress.toLowerCase();
   const isParticipant = isBuyer || isSeller;
+
+
 
   const canFund = Boolean(dealId) && isBuyer && deal?.status === "INIT";
   const canRelease = Boolean(dealId) && isBuyer && deal && ["FUNDED", "RESOLVED"].includes(deal.status);
@@ -79,9 +81,9 @@ const DealOverview: React.FC = () => {
 
   const handleAction = async (actionType: 'fund' | 'release' | 'refund') => {
     if (!dealId) return;
-    
+
     trackAction(actionType, dealId);
-    
+
     try {
       switch (actionType) {
         case 'fund':
@@ -90,17 +92,17 @@ const DealOverview: React.FC = () => {
           break;
         case 'release':
           await releaseAction.mutateAsync({ dealId });
-          trackDealEvent('payout_success', dealId, undefined, { payout_type: 'release' });
+          trackDealEvent('payout_success', dealId, { payout_type: 'release' });
           break;
         case 'refund':
           await refundAction.mutateAsync({ dealId });
-          trackDealEvent('payout_success', dealId, undefined, { payout_type: 'refund' });
+          trackDealEvent('payout_success', dealId, { payout_type: 'refund' });
           break;
       }
     } catch (error) {
-      trackDealEvent('fund_failed', dealId, undefined, { 
+      trackDealEvent('fund_failed', dealId, {
         error: error instanceof Error ? error.message : 'Unknown error',
-        action_type: actionType 
+        action_type: actionType
       });
     }
   };
@@ -182,7 +184,7 @@ const DealOverview: React.FC = () => {
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
-      
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -193,7 +195,7 @@ const DealOverview: React.FC = () => {
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Deal Overview</h1>
+            <h1 className="text-3xl font-bold tracking-tight">{deal?.title || "Deal Overview"}</h1>
             <p className="text-muted-foreground">Deal ID: {id}</p>
           </div>
         </div>
@@ -223,7 +225,7 @@ const DealOverview: React.FC = () => {
           <CardContent>
             {nextAction.link ? (
               <Link to={nextAction.link}>
-                <Button 
+                <Button
                   variant={nextAction.variant}
                   size="lg"
                   className="w-full sm:w-auto"
@@ -232,7 +234,7 @@ const DealOverview: React.FC = () => {
                 </Button>
               </Link>
             ) : nextAction.action ? (
-              <Button 
+              <Button
                 variant={nextAction.variant}
                 size="lg"
                 onClick={nextAction.action}
@@ -329,13 +331,13 @@ const DealOverview: React.FC = () => {
           >
             Refund Buyer
           </Button>
-          
+
           <Link to={`/dispute/${dealId}`}>
             <Button variant="destructive" disabled={!deal || !["INIT", "FUNDED"].includes(deal.status)}>
               Open Dispute
             </Button>
           </Link>
-          
+
           <Link to={`/evidence/${dealId}`}>
             <Button variant="outline">
               Manage Evidence
@@ -368,7 +370,7 @@ const DealOverview: React.FC = () => {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-primary hover:underline text-xs flex items-center gap-1"
-                        onClick={() => trackDealEvent('explorer_link_click', dealId, undefined, { tx_sig: evt.tx_sig })}
+                        onClick={() => trackDealEvent('explorer_link_click', dealId, { tx_sig: evt.tx_sig })}
                       >
                         View
                         <ExternalLink className="w-3 h-3" />

@@ -14,6 +14,8 @@ interface InitiateVariables {
   deliverBy?: number;
   disputeDeadline?: number;
   feeBps?: number;
+  title?: string;
+  role?: "buyer" | "seller";
 }
 
 interface ActionVariablesMap {
@@ -44,14 +46,22 @@ export function useAction<T extends ActionKey>(action: T) {
         case "initiate": {
           const payload = variables as InitiateVariables;
           if (!payload.counterparty) throw new Error("Counterparty wallet required");
+
+          const isBuyer = payload.role === "buyer";
+          // If I am buyer, counterparty is seller. If I am seller, counterparty is buyer.
+          const buyerWallet = isBuyer ? viewerWallet : payload.counterparty;
+          const sellerWallet = isBuyer ? payload.counterparty : viewerWallet;
+
           response = await actionsService.initiate({
-            sellerWallet: viewerWallet,
-            buyerWallet: payload.counterparty,
+            sellerWallet,
+            buyerWallet,
             amount: payload.amount.toString(),
             feeBps: payload.feeBps ?? 0,
             deliverBy: payload.deliverBy,
             disputeDeadline: payload.disputeDeadline,
             description: payload.description,
+            title: payload.title,
+            payer: viewerWallet,
           });
           actionVerb = "INITIATE";
           dealId = response.dealId;

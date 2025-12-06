@@ -11,6 +11,7 @@ import NotFound from "./pages/NotFound";
 import Step1 from "./pages/escrow/Step1";
 import Step2 from "./pages/escrow/Step2";
 import Step3 from "./pages/escrow/Step3";
+import Step4 from "./pages/escrow/Step4";
 import Dashboard from "./pages/Dashboard";
 import WalletConnectDashboard from "./pages/wallet-connect/Dashboard";
 import Deals from "./pages/Deals";
@@ -36,9 +37,9 @@ const App = () => {
         <Sonner />
         <SolanaWalletProvider>
           <ModalProvider>
-            <BrowserRouter future={{ 
-              v7_startTransition: true, 
-              v7_relativeSplatPath: true 
+            <BrowserRouter future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true
             }}>
               <AppWithModal />
             </BrowserRouter>
@@ -55,39 +56,40 @@ const AppWithModal = () => {
     <>
       <WalletConnectModal open={walletModalOpen} onOpenChange={setWalletModalOpen} />
       <Routes>
-              {/* Public routes */}
-              <Route path="/" element={<Home />} />
-              <Route path="/docs" element={<Documentation />} />
-              
-              {/* Wallet connection */}
-              <Route path="/wallet-connect" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              
-              {/* Deal management */}
-              <Route path="/deals" element={<ProtectedRoute><Deals /></ProtectedRoute>} />
-              <Route path="/deal/:id" element={<ProtectedRoute><DealOverview /></ProtectedRoute>} />
-              
-              {/* Escrow flow */}
-              <Route path="/escrow/new" element={<ProtectedRoute><Step1 /></ProtectedRoute>} />
-              <Route path="/escrow/fund/:id" element={<ProtectedRoute><Step2 /></ProtectedRoute>} />
-              <Route path="/resolution/:id" element={<ProtectedRoute><ResolutionPage /></ProtectedRoute>} />
-              
-              {/* Disputes & Evidence */}
-              <Route path="/dispute/:id" element={<ProtectedRoute><Dispute /></ProtectedRoute>} />
-              <Route path="/evidence/:id" element={<ProtectedRoute><EvidencePage /></ProtectedRoute>} />
-              
-              {/* Account & Profile */}
-              <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-              <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+        {/* Public routes */}
+        <Route path="/" element={<Home />} />
+        <Route path="/docs" element={<Documentation />} />
 
-              {/* Legacy routes for backward compatibility */}
-              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/upload" element={<ProtectedRoute><EvidenceUpload /></ProtectedRoute>} />
-              <Route path="/escrow/step1" element={<ProtectedRoute><Step1 /></ProtectedRoute>} />
-              <Route path="/escrow/step2" element={<ProtectedRoute><Step2 /></ProtectedRoute>} />
-              <Route path="/escrow/step3" element={<ProtectedRoute><Step3 /></ProtectedRoute>} />
+        {/* Wallet connection */}
+        <Route path="/wallet-connect" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
 
-              {/* Catch-all */}
-              <Route path="*" element={<NotFound />} />
+        {/* Deal management */}
+        <Route path="/deals" element={<ProtectedRoute><Deals /></ProtectedRoute>} />
+        <Route path="/deal/:id" element={<ProtectedRoute><DealOverview /></ProtectedRoute>} />
+
+        {/* Escrow flow */}
+        <Route path="/escrow/new" element={<ProtectedRoute><Step1 /></ProtectedRoute>} />
+        <Route path="/escrow/step2" element={<ProtectedRoute><Step2 /></ProtectedRoute>} />
+        <Route path="/escrow/step3" element={<ProtectedRoute><Step3 /></ProtectedRoute>} />
+        <Route path="/escrow/step4" element={<ProtectedRoute><Step4 /></ProtectedRoute>} />
+        <Route path="/escrow/fund/:id" element={<ProtectedRoute><Step3 /></ProtectedRoute>} />
+        <Route path="/resolution/:id" element={<ProtectedRoute><ResolutionPage /></ProtectedRoute>} />
+
+        {/* Disputes & Evidence */}
+        <Route path="/dispute/:id" element={<ProtectedRoute><Dispute /></ProtectedRoute>} />
+        <Route path="/evidence/:id" element={<ProtectedRoute><EvidencePage /></ProtectedRoute>} />
+
+        {/* Account & Profile */}
+        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+
+        {/* Legacy routes for backward compatibility */}
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/upload" element={<ProtectedRoute><EvidenceUpload /></ProtectedRoute>} />
+        <Route path="/escrow/step1" element={<ProtectedRoute><Step1 /></ProtectedRoute>} />
+
+        {/* Catch-all */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </>
   );

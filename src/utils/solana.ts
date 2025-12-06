@@ -3,7 +3,7 @@ const CLUSTERS = ["devnet", "testnet", "mainnet-beta", "localnet", "localhost"] 
 
 export type SolanaCluster = (typeof CLUSTERS)[number];
 
-const DEFAULT_CLUSTER: SolanaCluster = "localnet";
+const DEFAULT_CLUSTER: SolanaCluster = "devnet";
 
 export function isValidSolanaAddress(addr: string): boolean {
   if (typeof addr !== "string") return false;

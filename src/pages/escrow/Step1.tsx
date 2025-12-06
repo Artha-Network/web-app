@@ -8,7 +8,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import EscrowFlowTemplate from "@/templates/EscrowFlowTemplate";
 import EscrowStepLayout from "@/components/organisms/EscrowStepLayout";
 import StepIndicator from "@/components/molecules/StepIndicator";
-import { ArrowRight, WalletMinimal, DollarSign, AlertTriangle, Info } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ArrowRight, WalletMinimal, DollarSign, AlertTriangle, Info, User } from "lucide-react";
 import { useEscrowFlow } from "@/hooks/useEscrowFlow";
 import { useEvent } from "@/hooks/useEvent";
 import { useWallet } from "@/hooks/useWallet";
@@ -31,7 +32,7 @@ const Step1: FC = () => {
   const { data, setField, next } = useEscrowFlow();
   const { trackEvent, trackDealEvent } = useEvent();
   const navigate = useNavigate();
-  
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isValidating, setIsValidating] = useState(false);
 
@@ -43,6 +44,12 @@ const Step1: FC = () => {
   // Validation logic
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
+
+    if (!data.title.trim()) {
+      newErrors.title = "Deal title is required";
+    } else if (data.title.length < 3) {
+      newErrors.title = "Title must be at least 3 characters";
+    }
 
     if (!data.counterpartyAddress.trim()) {
       newErrors.counterpartyAddress = "Counterparty address is required";
@@ -74,7 +81,7 @@ const Step1: FC = () => {
       const fundingDate = new Date(data.initiatorDeadline);
       const now = new Date();
       const minDate = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour from now
-      
+
       if (fundingDate <= minDate) {
         newErrors.initiatorDeadline = "Funding deadline must be at least 1 hour from now";
       }
@@ -85,7 +92,7 @@ const Step1: FC = () => {
     } else if (data.initiatorDeadline) {
       const fundingDate = new Date(data.initiatorDeadline);
       const completionDate = new Date(data.completionDeadline);
-      
+
       if (completionDate <= fundingDate) {
         newErrors.completionDeadline = "Completion deadline must be after funding deadline";
       }
@@ -97,7 +104,7 @@ const Step1: FC = () => {
 
   const handleNext = async () => {
     setIsValidating(true);
-    
+
     if (!validateForm()) {
       setIsValidating(false);
       return;
@@ -107,9 +114,9 @@ const Step1: FC = () => {
     trackEvent('deal_draft_submitted', {
       amount: data.amount,
       has_description: !!data.description,
-      funding_deadline_hours: data.initiatorDeadline ? 
+      funding_deadline_hours: data.initiatorDeadline ?
         Math.round((new Date(data.initiatorDeadline).getTime() - Date.now()) / (1000 * 60 * 60)) : undefined,
-      completion_deadline_hours: data.completionDeadline ? 
+      completion_deadline_hours: data.completionDeadline ?
         Math.round((new Date(data.completionDeadline).getTime() - Date.now()) / (1000 * 60 * 60)) : undefined,
     });
 
@@ -140,17 +147,68 @@ const Step1: FC = () => {
   return (
     <EscrowFlowTemplate userName={publicKey.toBase58().slice(0, 8) + "..."}>
       <EscrowStepLayout progress={<StepIndicator current={1} />}>
-        
+
         {/* Info Alert */}
         <Alert className="mb-6">
           <Info className="h-4 w-4" />
           <AlertDescription>
-            Create a new escrow deal by providing the counterparty's wallet address, amount, and terms. 
+            Create a new escrow deal by providing the counterparty's wallet address, amount, and terms.
             The deal will be created on-chain after funding in the next step.
           </AlertDescription>
         </Alert>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+          <div className="md:col-span-2">
+            <Label htmlFor="title" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Deal Name *
+            </Label>
+            <Input
+              id="title"
+              value={data.title}
+              onChange={(e) => {
+                setField("title", e.target.value);
+                if (errors.title) {
+                  setErrors(prev => ({ ...prev, title: "" }));
+                }
+              }}
+              placeholder="e.g., Web Design Project, Car Sale, etc."
+              className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${errors.title ? 'border-red-500' : ''
+                }`}
+            />
+            {errors.title && (
+              <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                {errors.title}
+              </p>
+            )}
+          </div>
+
+          <div className="md:col-span-2">
+            <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              I am the...
+            </Label>
+            <RadioGroup
+              defaultValue={data.role}
+              onValueChange={(val) => setField("role", val as "buyer" | "seller")}
+              className="flex gap-4"
+            >
+              <div className="flex items-center space-x-2 border rounded-lg p-3 cursor-pointer hover:bg-gray-50 flex-1">
+                <RadioGroupItem value="buyer" id="role-buyer" />
+                <Label htmlFor="role-buyer" className="cursor-pointer flex-1">
+                  <span className="font-semibold">Buyer</span>
+                  <p className="text-xs text-muted-foreground">I am paying for goods/services</p>
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2 border rounded-lg p-3 cursor-pointer hover:bg-gray-50 flex-1">
+                <RadioGroupItem value="seller" id="role-seller" />
+                <Label htmlFor="role-seller" className="cursor-pointer flex-1">
+                  <span className="font-semibold">Seller</span>
+                  <p className="text-xs text-muted-foreground">I am providing goods/services</p>
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
+
           <div>
             <Label htmlFor="counterparty-address" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Counterparty Solana Address *
@@ -169,9 +227,8 @@ const Step1: FC = () => {
                   }
                 }}
                 placeholder="Enter Solana address..."
-                className={`block w-full rounded-md pl-10 sm:text-sm ${
-                  errors.counterpartyAddress ? 'border-red-500' : ''
-                }`}
+                className={`block w-full rounded-md pl-10 sm:text-sm ${errors.counterpartyAddress ? 'border-red-500' : ''
+                  }`}
               />
             </div>
             {errors.counterpartyAddress && (
@@ -208,9 +265,8 @@ const Step1: FC = () => {
                   }
                 }}
                 placeholder="0.00"
-                className={`block w-full rounded-md pl-7 pr-12 sm:text-sm ${
-                  errors.amount ? 'border-red-500' : ''
-                }`}
+                className={`block w-full rounded-md pl-7 pr-12 sm:text-sm ${errors.amount ? 'border-red-500' : ''
+                  }`}
               />
               <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                 <span className="text-gray-500 sm:text-sm" id="price-currency">
@@ -245,9 +301,8 @@ const Step1: FC = () => {
                   }
                 }}
                 placeholder="Describe the terms of the transaction, what goods/services are being exchanged, delivery conditions, etc..."
-                className={`block w-full rounded-md shadow-sm sm:text-sm ${
-                  errors.description ? 'border-red-500' : ''
-                }`}
+                className={`block w-full rounded-md shadow-sm sm:text-sm ${errors.description ? 'border-red-500' : ''
+                  }`}
                 maxLength={1000}
               />
             </div>
@@ -269,9 +324,8 @@ const Step1: FC = () => {
             <Input
               id="initiator-deadline"
               type="datetime-local"
-              className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
-                errors.initiatorDeadline ? 'border-red-500' : ''
-              }`}
+              className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${errors.initiatorDeadline ? 'border-red-500' : ''
+                }`}
               value={data.initiatorDeadline}
               onChange={(e) => {
                 setField("initiatorDeadline", e.target.value);
@@ -291,7 +345,7 @@ const Step1: FC = () => {
               When the buyer must fund the escrow
             </p>
           </div>
-          
+
           <div>
             <Label htmlFor="completion-deadline" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Completion Deadline *
@@ -299,9 +353,8 @@ const Step1: FC = () => {
             <Input
               id="completion-deadline"
               type="datetime-local"
-              className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
-                errors.completionDeadline ? 'border-red-500' : ''
-              }`}
+              className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${errors.completionDeadline ? 'border-red-500' : ''
+                }`}
               value={data.completionDeadline}
               onChange={(e) => {
                 setField("completionDeadline", e.target.value);

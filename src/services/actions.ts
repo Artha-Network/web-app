@@ -10,6 +10,8 @@ export interface InitiatePayload {
   deliverBy?: number;
   disputeDeadline?: number;
   description?: string;
+  title?: string;
+  payer: string;
 }
 
 export interface ActionResponse {
@@ -80,6 +82,8 @@ export async function initiate(payload: InitiatePayload): Promise<ActionResponse
     deliverBy: payload.deliverBy,
     disputeDeadline: payload.disputeDeadline,
     description: payload.description,
+    title: payload.title,
+    payer: payload.payer,
   });
 }
 

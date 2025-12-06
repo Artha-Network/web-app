@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useWallet } from "@/hooks/useWallet";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
-import { useMyDeals, useRecentDealEvents, statusToBadge } from "@/hooks/useDeals";
+import { useMyDeals, useRecentDealEvents, statusToBadge, useDeleteDeal } from "@/hooks/useDeals";
 import { useEvent } from "@/hooks/useEvent";
 import { getConfiguredCluster } from '@/utils/solana';
 import type { DealCardProps } from "@/components/molecules/DealCard";
@@ -76,7 +76,7 @@ const Dashboard: FC = () => {
   const { connection } = useConnection();
   const { trackEvent } = useEvent();
   const walletConnection = useWalletConnection();
-  
+
   const [solBalance, setSolBalance] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [cluster] = useState(getConfiguredCluster());
@@ -85,7 +85,7 @@ const Dashboard: FC = () => {
     walletAddress: string;
     balanceSource: string;
   } | null>(null);
-  
+
   const address = publicKey?.toBase58();
   const userName = address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "User";
 
@@ -103,20 +103,20 @@ const Dashboard: FC = () => {
   // Fetch wallet balances
   const fetchWalletData = async () => {
     if (!publicKey || !connected) return;
-    
+
     setIsLoading(true);
     try {
       // Fetch SOL balance
       const solBalance = await connection.getBalance(publicKey);
       setSolBalance(solBalance / LAMPORTS_PER_SOL);
-      
+
       // Store debug info
       setDebugInfo({
         rpcEndpoint: connection.rpcEndpoint,
         walletAddress: publicKey.toBase58(),
         balanceSource: `Fetched from RPC: ${connection.rpcEndpoint}`,
       });
-      
+
       console.log('🔍 WALLET DEBUG:', {
         rpcEndpoint: connection.rpcEndpoint,
         walletAddress: publicKey.toBase58(),
@@ -145,6 +145,21 @@ const Dashboard: FC = () => {
     disconnect();
   };
 
+  const deleteDeal = useDeleteDeal();
+
+  const handleDeleteDeal = async (dealId: string) => {
+    if (confirm("Are you sure you want to delete this deal? This action cannot be undone.")) {
+      trackEvent('deal_delete_click', { deal_id: dealId });
+      try {
+        await deleteDeal.mutateAsync(dealId);
+        // Toast or notification could go here
+      } catch (error) {
+        console.error("Failed to delete deal:", error);
+        alert("Failed to delete deal. Please try again.");
+      }
+    }
+  };
+
   const { data: dealsData } = useMyDeals();
   const { data: eventsData } = useRecentDealEvents(6);
 
@@ -155,7 +170,7 @@ const Dashboard: FC = () => {
       const deadline = deal.deliver_deadline ? new Date(deal.deliver_deadline).toLocaleDateString() : "—";
       return {
         id: deal.id,
-        title: `Deal ${deal.id.slice(0, 6)}`,
+        title: deal.title || `Deal ${deal.id.slice(0, 6)}`,
         counterparty: shortAddress(counterparty),
         amountUsd: Number(deal.price_usd ?? 0),
         deadline,
@@ -287,7 +302,7 @@ const Dashboard: FC = () => {
                     </div>
                   ) : null}
                 </div>
-                
+
                 {/* Debug Info Panel */}
                 {debugInfo && (
                   <div className="mt-4 pt-4 border-t bg-blue-50 dark:bg-blue-950 p-3 rounded-md">
@@ -323,7 +338,7 @@ const Dashboard: FC = () => {
             {dealCards.length === 0 ? (
               <div className="px-4 py-6 text-sm text-muted-foreground">No deals found for this wallet yet.</div>
             ) : (
-              <ActiveDealsGrid deals={dealCards} />
+              <ActiveDealsGrid deals={dealCards} onDelete={handleDeleteDeal} />
             )}
           </div>
 

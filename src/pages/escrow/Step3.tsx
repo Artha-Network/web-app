@@ -1,149 +1,137 @@
 import { FC, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import EscrowFlowTemplate from "@/templates/EscrowFlowTemplate";
 import EscrowStepLayout from "@/components/organisms/EscrowStepLayout";
 import StepIndicator from "@/components/molecules/StepIndicator";
-import { 
-  CheckCircle2, 
-  Shield, 
-  Brain, 
-  ExternalLink, 
-  AlertTriangle, 
-  Clock, 
-  DollarSign,
-  ArrowLeft,
-  Loader,
-  Info
-} from "lucide-react";
+import { ArrowRight, ArrowLeft, Shield, Clock, DollarSign, CheckCircle2, Info, AlertTriangle, Loader } from "lucide-react";
 import { useEscrowFlow } from "@/hooks/useEscrowFlow";
 import { useEvent } from "@/hooks/useEvent";
 import { useWallet } from "@/hooks/useWallet";
 import { useAction } from "@/hooks/useAction";
-import { useDeal } from "@/hooks/useDeal";
 
 /**
- * Step3 - AI resolution confirmation and next steps (Confirm.tsx)
+ * Step2 - Fund deal and deploy to Solana (Fund.tsx)
  * 
- * Purpose: confirm deal creation and show next steps
- * Route: /escrow/confirm (after successful funding) OR /deal/:id (direct access)
- * Emits: view_resolution, execute_release_click, execute_refund_click, payout_success
- * Storage: display current deal status from Supabase
- * AI: show AI arbiter status, past decisions, dispute process
- * Solana: show transaction links, current escrow state
- * Links: links to evidence submission, dispute initiation
+ * Purpose: fund deal
+ * Route: /escrow/fund/:id  (where :id is temporary local ID)
+ * Emits: fund_attempt, fund_success, fund_failed
+ * Storage: update deal status to FUNDED
+ * AI: none yet
+ * Solana: Initialize escrow PDA, fund vault
+ * Links: /deal/:deal_id (the actual blockchain deal_id from response)
  */
 
-const Step3: FC = () => {
+const Step2: FC = () => {
   const { publicKey } = useWallet();
-  const { data, back } = useEscrowFlow();
+  const { data, back, next } = useEscrowFlow();
   const { trackEvent } = useEvent();
   const navigate = useNavigate();
-  const { id: dealId } = useParams();
+  const { mutate: initiateEscrow, isPending: isInitiating, error: initiateError } = useAction("initiate");
   
-  // If we have a deal ID from URL, use that. Otherwise use the flow data.
-  const shouldUseDealHook = !!dealId;
-  const { deal, loading: dealLoading, error: dealError } = useDeal(
-    shouldUseDealHook ? dealId! : undefined
-  );
-  
-  const { execute: performAction, loading: actionLoading, error: actionError } = useAction();
-  const [lastActionResult, setLastActionResult] = useState<any>(null);
-
-  // Determine data source (URL deal or flow data)
-  const displayData = shouldUseDealHook ? deal : {
-    id: 'temp-' + Date.now(),
-    counterpartyAddress: data.counterpartyAddress,
-    amount: data.amount,
-    description: data.description,
-    status: 'CREATED',
-    ...data
-  };
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Track page view on mount
   useEffect(() => {
-    trackEvent('view_resolution', {
-      deal_id: displayData?.id,
-      amount: displayData?.amount,
-      status: displayData?.status,
-      has_ai_decision: !!displayData?.ai_resolution,
+    trackEvent('view_funding', {
+      amount: data.amount,
+      counterparty: data.counterpartyAddress,
+      funding_method: data.fundingMethod,
     });
-  }, [trackEvent, displayData]);
+  }, [data.amount, data.counterpartyAddress, data.fundingMethod, trackEvent]);
 
-  const handleAction = async (actionType: 'release' | 'refund' | 'dispute') => {
-    if (!publicKey || !displayData?.id) return;
+  // Calculate fees and totals
+  const platformFeeRate = 0.005; // 0.5%
+  const platformFee = typeof data.amount === 'number' ? Number((data.amount * platformFeeRate).toFixed(2)) : 0;
+  const gasFee = 0.01; // Estimated SOL for transaction fees
+  const totalCost = typeof data.amount === 'number' ? Number((data.amount + platformFee).toFixed(2)) : 0;
 
+  // Format dates for display
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "Not set";
+    return new Date(dateString).toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const handleFunding = async () => {
+    if (!publicKey) {
+      console.error('Wallet not connected');
+      return;
+    }
+    
+    setIsProcessing(true);
+    
     try {
-      // Track action attempt
-      trackEvent(`execute_${actionType}_click`, {
-        deal_id: displayData.id,
-        amount: displayData.amount,
+      // Track funding attempt
+      trackEvent('fund_attempt', {
+        amount: data.amount,
+        platform_fee: platformFee,
+        total_cost: totalCost,
       });
 
-      const result = await performAction({
-        action: actionType,
-        params: {
-          dealId: displayData.id,
+      // Convert dates to timestamps
+      const deliverBy = data.deliveryDeadline ? new Date(data.deliveryDeadline).getTime() / 1000 : undefined;
+      const disputeDeadline = data.completionDeadline ? new Date(data.completionDeadline).getTime() / 1000 : undefined;
+
+      // Create and initiate the escrow (this includes both creation and funding)
+      initiateEscrow({
+        counterparty: data.counterpartyAddress,
+        amount: typeof data.amount === 'number' ? data.amount : 0,
+        description: data.description,
+        deliverBy,
+        disputeDeadline,
+        feeBps: 50, // 0.5% fee (50 basis points)
+      }, {
+        onSuccess: (result) => {
+          // Track successful funding
+          trackEvent('fund_success', {
+            deal_id: result.dealId,
+            amount: data.amount,
+            platform_fee: platformFee,
+            transaction_signature: result.txSig,
+          });
+
+          // Store the blockchain deal ID
+          localStorage.setItem('lastCreatedDealId', result.dealId);
+
+          // Navigate to deal overview
+          navigate(`/deal/${result.dealId}`);
+        },
+        onError: (error) => {
+          console.error('Funding failed:', error);
+          trackEvent('fund_failed', {
+            error: error.message,
+            amount: data.amount,
+          });
+        },
+        onSettled: () => {
+          setIsProcessing(false);
         }
       });
 
-      if (result?.signature) {
-        // Track successful action
-        trackEvent('payout_success', {
-          deal_id: displayData.id,
-          action_type: actionType,
-          amount: displayData.amount,
-          transaction_signature: result.signature,
-        });
-
-        setLastActionResult(result);
-      }
     } catch (error) {
-      console.error(`${actionType} failed:`, error);
+      console.error('Funding failed:', error);
+      trackEvent('fund_failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        amount: data.amount,
+      });
+      setIsProcessing(false);
     }
   };
 
   const handleBack = () => {
-    trackEvent('resolution_back_button_click');
-    back(3);
+    trackEvent('fund_back_button_click');
+    back(2);
   };
-
-  // Show loading state for deal fetch
-  if (shouldUseDealHook && dealLoading) {
-    return (
-      <div className="container mx-auto px-6 py-8">
-        <div className="max-w-2xl mx-auto text-center">
-          <div className="bg-card p-8 rounded-lg border">
-            <Loader className="w-12 h-12 mx-auto text-muted-foreground mb-4 animate-spin" />
-            <h2 className="text-xl font-semibold mb-2">Loading Deal...</h2>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Show error state for deal fetch
-  if (shouldUseDealHook && dealError) {
-    return (
-      <div className="container mx-auto px-6 py-8">
-        <div className="max-w-2xl mx-auto text-center">
-          <div className="bg-card p-8 rounded-lg border">
-            <AlertTriangle className="w-12 h-12 mx-auto text-red-500 mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Deal Not Found</h2>
-            <p className="text-muted-foreground mb-4">
-              The requested deal could not be found.
-            </p>
-            <Button onClick={() => navigate('/deals')}>
-              View All Deals
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Show wallet connection requirement
   if (!publicKey) {
@@ -154,7 +142,7 @@ const Step3: FC = () => {
             <Shield className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
             <h2 className="text-xl font-semibold mb-2">Wallet Required</h2>
             <p className="text-muted-foreground mb-4">
-              Please connect your wallet to view deal status and perform actions.
+              Please connect your wallet to fund the escrow deal.
             </p>
             <Button onClick={() => navigate('/wallet-connect')}>
               Connect Wallet
@@ -166,285 +154,205 @@ const Step3: FC = () => {
   }
 
   return (
-    <EscrowFlowTemplate userName={publicKey.toBase58().slice(0, 8) + "..."}>
-      <EscrowStepLayout progress={<StepIndicator current={3} />}>
-        
-        {/* Success Alert */}
-        {lastActionResult && (
-          <Alert className="mb-6 border-green-200 bg-green-50 dark:bg-green-950">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-800 dark:text-green-200">
-              Action completed successfully! 
-              {lastActionResult.signature && (
-                <a 
-                  href={`https://explorer.solana.com/tx/${lastActionResult.signature}?cluster=${import.meta.env.VITE_SOLANA_CLUSTER || 'custom'}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 ml-2 underline"
-                >
-                  View transaction <ExternalLink className="w-3 h-3" />
-                </a>
+    <EscrowFlowTemplate>
+      <EscrowStepLayout
+        headerTitle="Fund Your Deal"
+        headerSubtitle="Review the details and fund your escrow to deploy it on Solana"
+        progress={<StepIndicator current={2} />}
+        footer={
+          <div className="flex gap-4 pt-6">
+            <Button
+              variant="outline"
+              onClick={handleBack}
+              className="flex-1"
+              disabled={isInitiating || isProcessing}
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Setup
+            </Button>
+            
+            <Button
+              onClick={handleFunding}
+              className="flex-1"
+              disabled={isInitiating || isProcessing}
+            >
+              {isInitiating || isProcessing ? (
+                <>
+                  <Loader className="w-4 h-4 mr-2 animate-spin" />
+                  Creating Deal...
+                </>
+              ) : (
+                <>
+                  <Shield className="w-4 h-4 mr-2" />
+                  Fund Deal (${totalCost.toFixed(2)} USDC)
+                </>
               )}
-            </AlertDescription>
-          </Alert>
-        )}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-6">
+          {/* Deal Summary */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-green-600" />
+                Deal Summary
+              </CardTitle>
+              <CardDescription>
+                Review your escrow details before funding
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Counterparty</Label>
+                  <p className="font-mono text-sm break-all bg-muted p-2 rounded">
+                    {data.counterpartyAddress}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Amount</Label>
+                  <p className="text-lg font-semibold">${data.amount} USDC</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Delivery Deadline</Label>
+                  <p>{formatDate(data.deliveryDeadline)}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Completion Deadline</Label>
+                  <p>{formatDate(data.completionDeadline)}</p>
+                </div>
+              </div>
+              
+              {data.description && (
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Description</Label>
+                  <p className="text-sm bg-muted p-3 rounded">{data.description}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-        {/* Error Alert */}
-        {actionError && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              Action failed: {actionError}
-            </AlertDescription>
-          </Alert>
-        )}
+          {/* Fee Breakdown */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <DollarSign className="w-5 h-5" />
+                Fee Breakdown
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span>Deal Amount</span>
+                  <span className="font-medium">${data.amount} USDC</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Platform Fee (0.5%)</span>
+                  <span className="font-medium">${platformFee.toFixed(2)} USDC</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Gas Fee (estimated)</span>
+                  <span className="font-medium">~{gasFee} SOL</span>
+                </div>
+                <div className="border-t pt-3">
+                  <div className="flex justify-between text-lg font-semibold">
+                    <span>Total USDC Cost</span>
+                    <span>${totalCost.toFixed(2)} USDC</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          
-          {/* Deal Status */}
+          {/* Funding Method */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Shield className="w-5 h-5" />
-                Escrow Status
+                Funding Method
               </CardTitle>
-              <CardDescription>
-                Current state of your escrow deal
-              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Status</span>
-                <Badge variant={
-                  displayData?.status === 'FUNDED' ? 'default' :
-                  displayData?.status === 'DISPUTED' ? 'destructive' :
-                  displayData?.status === 'RESOLVED' ? 'secondary' :
-                  'outline'
-                }>
-                  {displayData?.status || 'CREATED'}
+            <CardContent>
+              <div className="flex items-center gap-3">
+                <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100">
+                  {data.fundingMethod}
                 </Badge>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Amount</span>
-                <span className="font-bold text-lg">
-                  ${displayData?.amount?.toLocaleString()} USDC
+                <span className="text-sm text-muted-foreground">
+                  Funds will be held securely in an on-chain escrow vault
                 </span>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Deal ID</span>
-                <span className="font-mono text-sm">
-                  {displayData?.id?.slice(0, 8)}...
-                </span>
-              </div>
-              
-              {displayData?.transaction_hash && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Transaction</span>
-                  <a 
-                    href={`https://explorer.solana.com/tx/${displayData.transaction_hash}?cluster=${import.meta.env.VITE_SOLANA_CLUSTER || 'custom'}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm"
-                  >
-                    View on Explorer <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-              )}
-
-              <div className="bg-muted p-3 rounded-lg">
-                <p className="text-sm">
-                  <strong>Description:</strong> {displayData?.description || "No description provided"}
-                </p>
               </div>
             </CardContent>
           </Card>
 
-          {/* AI Arbitration Status */}
+          {/* Timeline */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Brain className="w-5 h-5" />
-                AI Arbitration
+                <Clock className="w-5 h-5" />
+                Timeline
               </CardTitle>
-              <CardDescription>
-                Gemini-powered dispute resolution system
-              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {displayData?.ai_resolution ? (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-green-600" />
-                    <span className="text-sm font-medium">Resolution Available</span>
-                  </div>
-                  
-                  <div className="bg-muted p-3 rounded-lg">
-                    <p className="text-sm">
-                      <strong>AI Decision:</strong> {displayData.ai_resolution.decision}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Confidence: {(displayData.ai_resolution.confidence * 100).toFixed(1)}%
-                    </p>
-                  </div>
-                  
-                  <div className="text-xs text-muted-foreground">
-                    Resolved on {new Date(displayData.ai_resolution.resolved_at).toLocaleString()}
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-3 h-3 bg-green-600 rounded-full"></div>
+                  <div>
+                    <p className="font-medium">Deal Creation</p>
+                    <p className="text-sm text-muted-foreground">Now</p>
                   </div>
                 </div>
-              ) : displayData?.status === 'DISPUTED' ? (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-orange-500" />
-                    <span className="text-sm font-medium">Processing Dispute</span>
-                  </div>
-                  
-                  <p className="text-sm text-muted-foreground">
-                    AI arbiter is analyzing the evidence and will provide a resolution shortly.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Brain className="w-4 h-4 text-blue-500" />
-                    <span className="text-sm font-medium">Standby Mode</span>
-                  </div>
-                  
-                  <p className="text-sm text-muted-foreground">
-                    AI arbitration will activate if a dispute is raised.
-                  </p>
-                  
-                  <div className="grid grid-cols-1 gap-2">
-                    <div className="flex items-center gap-2 text-xs">
-                      <CheckCircle2 className="w-3 h-3 text-green-600" />
-                      <span>Evidence analysis</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <CheckCircle2 className="w-3 h-3 text-green-600" />
-                      <span>Fair resolution</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <CheckCircle2 className="w-3 h-3 text-green-600" />
-                      <span>Fast processing</span>
-                    </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
+                  <div>
+                    <p className="font-medium">Delivery Deadline</p>
+                    <p className="text-sm text-muted-foreground">{formatDate(data.deliveryDeadline)}</p>
                   </div>
                 </div>
-              )}
+                <div className="flex items-center gap-3">
+                  <div className="w-3 h-3 bg-orange-600 rounded-full"></div>
+                  <div>
+                    <p className="font-medium">Completion Deadline</p>
+                    <p className="text-sm text-muted-foreground">{formatDate(data.completionDeadline)}</p>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
-        </div>
 
-        {/* Next Steps */}
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5" />
-              Available Actions
-            </CardTitle>
-            <CardDescription>
-              What you can do with this escrow deal
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              
-              {/* Release Funds */}
-              {(displayData?.status === 'FUNDED' || displayData?.status === 'RESOLVED') && (
-                <div className="flex flex-col items-center p-4 border rounded-lg">
-                  <CheckCircle2 className="w-8 h-8 text-green-600 mb-2" />
-                  <h4 className="font-medium text-sm mb-1">Release Funds</h4>
-                  <p className="text-xs text-muted-foreground text-center mb-3">
-                    Release escrowed funds to counterparty
-                  </p>
-                  <Button 
-                    size="sm" 
-                    onClick={() => handleAction('release')}
-                    disabled={actionLoading}
-                    className="w-full"
-                  >
-                    {actionLoading ? <Loader className="w-3 h-3 animate-spin" /> : 'Release'}
-                  </Button>
-                </div>
-              )}
+          {/* Security Notice */}
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Secure Escrow:</strong> Your funds will be held in a Solana smart contract. 
+              Neither party can access the funds until the deal is completed or resolved through arbitration.
+            </AlertDescription>
+          </Alert>
 
-              {/* Initiate Dispute */}
-              {displayData?.status === 'FUNDED' && (
-                <div className="flex flex-col items-center p-4 border rounded-lg">
-                  <AlertTriangle className="w-8 h-8 text-orange-500 mb-2" />
-                  <h4 className="font-medium text-sm mb-1">Raise Dispute</h4>
-                  <p className="text-xs text-muted-foreground text-center mb-3">
-                    Submit evidence for AI arbitration
-                  </p>
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    onClick={() => navigate(`/evidence/${displayData.id}`)}
-                    className="w-full"
-                  >
-                    Submit Evidence
-                  </Button>
-                </div>
-              )}
-
-              {/* Request Refund */}
-              {(displayData?.status === 'FUNDED' && displayData?.ai_resolution?.decision === 'REFUND') && (
-                <div className="flex flex-col items-center p-4 border rounded-lg">
-                  <DollarSign className="w-8 h-8 text-blue-500 mb-2" />
-                  <h4 className="font-medium text-sm mb-1">Request Refund</h4>
-                  <p className="text-xs text-muted-foreground text-center mb-3">
-                    Get your funds back based on AI decision
-                  </p>
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    onClick={() => handleAction('refund')}
-                    disabled={actionLoading}
-                    className="w-full"
-                  >
-                    {actionLoading ? <Loader className="w-3 h-3 animate-spin" /> : 'Refund'}
-                  </Button>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Info Message */}
-        <Alert className="mt-6">
-          <Info className="h-4 w-4" />
-          <AlertDescription>
-            This deal is secured by our AI-powered arbitration system. All actions are recorded on the Solana blockchain 
-            for transparency and security. Need help? Contact support or submit evidence for dispute resolution.
-          </AlertDescription>
-        </Alert>
-
-        {/* Action Buttons */}
-        <div className="border-t border-gray-200 dark:border-gray-800 px-0 pt-6 mt-6 bg-transparent flex justify-between">
-          {!shouldUseDealHook ? (
-            <Button
-              variant="outline"
-              onClick={handleBack}
-              disabled={actionLoading}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back to Funding
-            </Button>
-          ) : (
-            <div /> // Empty div for spacing
+          {/* Error Display */}
+          {initiateError && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Failed to create escrow: {initiateError.message}
+              </AlertDescription>
+            </Alert>
           )}
-          
-          <Button
-            onClick={() => navigate('/deals')}
-            className="flex items-center gap-2"
-          >
-            View All Deals
-          </Button>
+
+          {/* Loading State */}
+          {(isInitiating || isProcessing) && (
+            <Alert>
+              <Loader className="h-4 w-4 animate-spin" />
+              <AlertDescription>
+                Creating your escrow deal on Solana. Please approve the transaction in your wallet...
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
       </EscrowStepLayout>
     </EscrowFlowTemplate>
   );
 };
 
-export default Step3;
+export default Step2;

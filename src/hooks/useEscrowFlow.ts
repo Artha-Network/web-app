@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 export type FundingMethod = "Wallet" | "Sponsored" | "Manual Transfer";
 
 export interface EscrowFlowData {
+  title: string;
+  role: "buyer" | "seller";
   counterpartyAddress: string;
   amount: number | "";
   description: string;
@@ -12,11 +14,15 @@ export interface EscrowFlowData {
   fundingMethod: FundingMethod;
   deliveryDeadline: string; // ISO string
   disputeWindowDays: number | "";
+  contract?: string;
+  questions?: string[];
 }
 
 const STORAGE_KEY = "artha:escrow-flow";
 
 const defaultData: EscrowFlowData = {
+  title: "",
+  role: "buyer",
   counterpartyAddress: "",
   amount: "",
   description: "",
@@ -25,19 +31,27 @@ const defaultData: EscrowFlowData = {
   fundingMethod: "Wallet",
   deliveryDeadline: "",
   disputeWindowDays: "",
+  contract: "",
+  questions: [],
 };
 
 export function useEscrowFlow() {
   const navigate = useNavigate();
-  const [data, setData] = useState<EscrowFlowData>(() => {
+  const [data, setData] = useState<EscrowFlowData>(defaultData);
+
+  // Load from storage on mount (non-blocking)
+  useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? { ...defaultData, ...JSON.parse(raw) } : defaultData;
+      if (raw) {
+        setData(prev => ({ ...prev, ...JSON.parse(raw) }));
+      }
     } catch {
-      return defaultData;
+      // ignore storage errors
     }
-  });
+  }, []);
 
+  // Save to storage on change
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -48,6 +62,10 @@ export function useEscrowFlow() {
 
   const setField = useCallback(<K extends keyof EscrowFlowData>(key: K, value: EscrowFlowData[K]) => {
     setData((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const updateData = useCallback((updates: Partial<EscrowFlowData>) => {
+    setData((prev) => ({ ...prev, ...updates }));
   }, []);
 
   const reset = useCallback(() => {
@@ -73,5 +91,5 @@ export function useEscrowFlow() {
   const next = useCallback((current: 1 | 2) => goTo((current + 1) as 2 | 3), [goTo]);
   const back = useCallback((current: 2 | 3) => goTo((current - 1) as 1 | 2), [goTo]);
 
-  return { data, setData, setField, reset, fee, total, goTo, next, back } as const;
+  return { data, setData, setField, updateData, reset, fee, total, goTo, next, back } as const;
 }

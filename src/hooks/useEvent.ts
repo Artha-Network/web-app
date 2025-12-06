@@ -12,11 +12,11 @@ export interface FrontendAnalyticsEvent {
 }
 
 // Common event types for type safety
-export type EventType = 
+export type EventType =
   // Home page events
   | 'view_home'
   | 'cta_get_started'
-  
+
   // Wallet connection events
   | 'connect_wallet_click'
   | 'wallet_connected'
@@ -26,19 +26,23 @@ export type EventType =
   | 'wallet_connection_complete'
   | 'wallet_connection_failed'
   | 'network_switch'
-  
+
   // Deal list events
   | 'view_deal_list'
   | 'filter_change'
   | 'row_open'
-  
+  | 'deal_delete_click'
+
   // Deal overview events
   | 'view_deal'
+  | 'deal_refresh'
+  | 'deals_refresh'
+  | 'explorer_link_click'
   | 'action_click_fund'
   | 'action_click_confirm'
   | 'action_click_dispute'
   | 'action_click_resolve'
-  
+
   // Escrow flow events
   | 'deal_draft_started'
   | 'deal_draft_submitted'
@@ -47,7 +51,7 @@ export type EventType =
   | 'fund_success'
   | 'fund_failed'
   | 'fund_back_button_click'
-  
+
   // Resolution events
   | 'view_resolution'
   | 'execute_release_click'
@@ -55,12 +59,12 @@ export type EventType =
   | 'execute_ai_decision'
   | 'payout_success'
   | 'resolution_back_button_click'
-  
+
   // Dispute events
   | 'dispute_started'
   | 'evidence_attach_open'
   | 'dispute_submitted'
-  
+
   // Evidence events
   | 'evidence_submission_started'
   | 'evidence_file_uploaded'
@@ -68,17 +72,17 @@ export type EventType =
   | 'evidence_upload_started'
   | 'evidence_upload_done'
   | 'evidence_delete'
-  
+
   // Profile events
   | 'profile_update'
-  
+
   // Notification events
   | 'notification_read'
   | 'notification_click'
-  
+
   // Documentation events
   | 'view_docs'
-  
+
   // Wallet management events
   | 'wallet_refresh'
   | 'wallet_disconnected';
@@ -89,7 +93,7 @@ export type EventType =
  */
 export function useEvent() {
   const { publicKey } = useWallet();
-  
+
   const trackEvent = useCallback(
     async (
       event: EventType,

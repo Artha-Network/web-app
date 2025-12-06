@@ -1,11 +1,12 @@
 import { useMemo } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const ACTIONS_BASE_URL = import.meta.env.VITE_ACTIONS_SERVER_URL || 'http://localhost:4000';
 
 export interface DealRow {
   id: string;
+  title?: string;
   status: string;
   price_usd: string;
   buyer_wallet: string | null;
@@ -43,32 +44,53 @@ const DEFAULT_PAGE_SIZE = 12;
 async function fetchDealsForWallet(wallet: string, page: number, pageSize: number): Promise<PaginatedDeals> {
   const offset = page * pageSize;
   const response = await fetch(`${ACTIONS_BASE_URL}/api/deals?wallet_address=${wallet}&offset=${offset}&limit=${pageSize}`);
-  
+
   if (!response.ok) {
     throw new Error(`Failed to fetch deals: ${response.status}`);
   }
-  
+
   return await response.json();
 }
 
 async function fetchDealById(dealId: string): Promise<DealWithEvents> {
   const response = await fetch(`${ACTIONS_BASE_URL}/api/deals/${dealId}`);
-  
+
   if (!response.ok) {
     throw new Error(`Failed to fetch deal: ${response.status}`);
   }
-  
-  return await response.json();
+
+  const data = await response.json();
+
+  // Map camelCase to snake_case if needed (backend inconsistency)
+  return {
+    ...data,
+    buyer_wallet: data.buyer_wallet || data.buyerWallet,
+    seller_wallet: data.seller_wallet || data.sellerWallet,
+    deliver_deadline: data.deliver_deadline || data.deliverDeadline,
+    price_usd: data.price_usd || data.priceUsd,
+    onchain_events: data.onchain_events || data.onchainEvents
+  };
 }
 
 async function fetchRecentEvents(wallet: string, limit: number): Promise<DealEventRow[]> {
   const response = await fetch(`${ACTIONS_BASE_URL}/api/deals/events/recent?wallet_address=${wallet}&limit=${limit}`);
-  
+
   if (!response.ok) {
     throw new Error(`Failed to fetch events: ${response.status}`);
   }
-  
+
   return await response.json();
+}
+
+async function deleteDeal(dealId: string): Promise<void> {
+  const response = await fetch(`${ACTIONS_BASE_URL}/api/deals/${dealId}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || `Failed to delete deal: ${response.status}`);
+  }
 }
 
 export function useMyDeals(options?: { page?: number; pageSize?: number }) {
@@ -137,4 +159,15 @@ export function statusToBadge(status: string): string {
     default:
       return "INIT";
   }
+}
+
+export function useDeleteDeal() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: deleteDeal,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my-deals"] });
+    },
+  });
 }

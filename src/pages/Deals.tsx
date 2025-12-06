@@ -8,12 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEvent } from "@/hooks/useEvent";
 import { useMyDeals, statusToBadge, DealRow } from "@/hooks/useDeals";
-import { 
-  Search, 
-  Filter, 
-  Plus, 
-  ArrowRight, 
-  Clock, 
+import {
+  Search,
+  Filter,
+  Plus,
+  ArrowRight,
+  Clock,
   DollarSign,
   User,
   RefreshCw,
@@ -45,7 +45,7 @@ const formatUsd = (value?: string) => {
 const Deals: React.FC = () => {
   const { publicKey } = useWallet();
   const { trackEvent, trackPageView } = useEvent();
-  
+
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [page, setPage] = useState(0);
@@ -62,29 +62,29 @@ const Deals: React.FC = () => {
 
   // Filter deals based on search and status
   const filteredDeals = deals.filter(deal => {
-    const matchesSearch = !searchTerm || 
+    const matchesSearch = !searchTerm ||
       deal.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       deal.buyer_wallet?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       deal.seller_wallet?.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     const matchesStatus = statusFilter === "all" || statusToBadge(deal.status) === statusFilter;
-    
+
     return matchesSearch && matchesStatus;
   });
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
-    trackEvent('filter_change', { 
-      filter_type: 'search', 
-      search_term: value 
+    trackEvent('filter_change', {
+      filter_type: 'search',
+      search_term: value
     });
   };
 
   const handleStatusFilterChange = (value: string) => {
     setStatusFilter(value);
-    trackEvent('filter_change', { 
-      filter_type: 'status', 
-      status_filter: value 
+    trackEvent('filter_change', {
+      filter_type: 'status',
+      status_filter: value
     });
   };
 
@@ -124,7 +124,7 @@ const Deals: React.FC = () => {
   return (
     <div className="container mx-auto px-6 py-8">
       <div className="space-y-6">
-        
+
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -266,7 +266,7 @@ const Deals: React.FC = () => {
                 </div>
                 <h3 className="text-lg font-semibold mb-2">No deals found</h3>
                 <p className="text-muted-foreground mb-4">
-                  {searchTerm || statusFilter !== "all" 
+                  {searchTerm || statusFilter !== "all"
                     ? "Try adjusting your filters to see more results."
                     : "You haven't created any deals yet. Create your first deal to get started."
                   }
@@ -283,9 +283,9 @@ const Deals: React.FC = () => {
             ) : (
               <div className="space-y-4">
                 {filteredDeals.map((deal) => (
-                  <DealCard 
-                    key={deal.id} 
-                    deal={deal} 
+                  <DealCard
+                    key={deal.id}
+                    deal={deal}
                     userWallet={userWallet}
                     onDealClick={handleDealClick}
                   />
@@ -332,7 +332,7 @@ const DealCard: React.FC<DealCardProps> = ({ deal, userWallet, onDealClick }) =>
   const isBuyer = userWallet === deal.buyer_wallet;
   const role = isBuyer ? "Buyer" : "Seller";
   const counterparty = isBuyer ? deal.seller_wallet : deal.buyer_wallet;
-  
+
   return (
     <Link to={`/deal/${deal.id}`} onClick={() => onDealClick(deal.id)}>
       <Card className="hover:shadow-lg transition-shadow cursor-pointer">
@@ -346,7 +346,10 @@ const DealCard: React.FC<DealCardProps> = ({ deal, userWallet, onDealClick }) =>
               <div>
                 <p className="font-semibold">{formatUsd(deal.price_usd)}</p>
                 <p className="text-sm text-muted-foreground">
-                  Deal ID: {deal.id.slice(0, 8)}...
+                  {deal.title || `Deal ID: ${deal.id.slice(0, 8)}...`}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  ID: {deal.id.slice(0, 8)}...
                 </p>
               </div>
               <div className="text-xs text-muted-foreground">

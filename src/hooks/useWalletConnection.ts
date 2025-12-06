@@ -12,6 +12,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useEvent } from './useEvent';
 import axios from 'axios';
+import { toast } from "sonner";
 
 const API_BASE_URL = import.meta.env.VITE_ACTIONS_SERVER_URL || 'http://localhost:4000';
 
@@ -25,7 +26,7 @@ interface WalletConnectionState {
 export function useWalletConnection() {
   const { publicKey, connected, signMessage } = useWallet();
   const { trackEvent } = useEvent();
-  
+
   const [state, setState] = useState<WalletConnectionState>({
     isVerified: false,
     isVerifying: false,
@@ -39,7 +40,7 @@ export function useWalletConnection() {
     }
 
     const walletAddress = publicKey.toBase58();
-    
+
     // Check if already verified in this session
     const storedVerification = sessionStorage.getItem(`wallet_verified_${walletAddress}`);
     if (storedVerification) {
@@ -58,15 +59,15 @@ export function useWalletConnection() {
       // Step 1: Request wallet signature to verify ownership
       const message = `Verify wallet ownership for Artha Network\nWallet: ${walletAddress}\nTimestamp: ${Date.now()}`;
       const encodedMessage = new TextEncoder().encode(message);
-      
+
       trackEvent('wallet_verification_attempt', { wallet_address: walletAddress });
-      
+
       let signature: Uint8Array;
       try {
         signature = await signMessage(encodedMessage);
       } catch (signError) {
         // User rejected signature
-        trackEvent('wallet_verification_rejected', { 
+        trackEvent('wallet_verification_rejected', {
           wallet_address: walletAddress,
           error: signError instanceof Error ? signError.message : 'Unknown error'
         });
@@ -98,8 +99,18 @@ export function useWalletConnection() {
       });
 
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to verify wallet';
-      
+      let errorMessage = 'Failed to verify wallet';
+
+      if (axios.isAxiosError(error) && error.response?.data) {
+        const data = error.response.data;
+        errorMessage = data.details || data.error || errorMessage;
+        if (data.hint) {
+          errorMessage += ` (${data.hint})`;
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
       setState({
         isVerified: false,
         isVerifying: false,
@@ -113,15 +124,17 @@ export function useWalletConnection() {
       });
 
       console.error('Wallet connection error:', error);
+      toast.error(errorMessage);
     }
   }, [publicKey, connected, signMessage, trackEvent]);
 
   // Auto-verify when wallet connects
   useEffect(() => {
-    if (connected && publicKey && !state.isVerified && !state.isVerifying) {
+    // Only auto-verify if we haven't tried and failed yet (prevent loop)
+    if (connected && publicKey && !state.isVerified && !state.isVerifying && !state.error) {
       verifyAndCreateUser();
     }
-  }, [connected, publicKey, state.isVerified, state.isVerifying, verifyAndCreateUser]);
+  }, [connected, publicKey, state.isVerified, state.isVerifying, state.error, verifyAndCreateUser]);
 
   // Clear verification when wallet disconnects
   useEffect(() => {
