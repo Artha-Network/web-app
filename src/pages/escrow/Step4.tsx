@@ -21,12 +21,13 @@ import {
 } from "lucide-react";
 import { useEscrowFlow } from "@/hooks/useEscrowFlow";
 import { useEvent } from "@/hooks/useEvent";
-import { useWallet } from "@/hooks/useWallet";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useAction } from "@/hooks/useAction";
-import { useDeal } from "@/hooks/useDeal";
+import { useDeal } from "@/hooks/useDeals";
+import { formatUsd, formatDateTime, getExplorerUrl } from "@/utils/format";
 
 /**
- * Step3 - AI resolution confirmation and next steps (Confirm.tsx)
+ * Step4 - AI resolution confirmation and next steps (Confirm.tsx)
  * 
  * Purpose: confirm deal creation and show next steps
  * Route: /escrow/confirm (after successful funding) OR /deal/:id (direct access)
@@ -37,7 +38,7 @@ import { useDeal } from "@/hooks/useDeal";
  * Links: links to evidence submission, dispute initiation
  */
 
-const Step3: FC = () => {
+const Step4: FC = () => {
   const { publicKey } = useWallet();
   const { data, back } = useEscrowFlow();
   const { trackEvent } = useEvent();
@@ -46,14 +47,21 @@ const Step3: FC = () => {
 
   // If we have a deal ID from URL, use that. Otherwise use the flow data.
   const shouldUseDealHook = !!dealId;
-  const { deal, loading: dealLoading, error: dealError } = useDeal(
+  const { data: deal, isLoading: dealLoading, error: dealError } = useDeal(
     shouldUseDealHook ? dealId! : undefined
   );
 
-  const { execute: performAction, loading: actionLoading, error: actionError } = useAction();
+  // Actions
+  const { mutateAsync: release, isPending: releaseLoading } = useAction("release");
+  const { mutateAsync: refund, isPending: refundLoading } = useAction("refund");
+  // const { mutateAsync: dispute, isPending: disputeLoading } = useAction("dispute"); // Dispute not supported in useAction yet
+
+  const actionLoading = releaseLoading || refundLoading;
+  const [actionError, setActionError] = useState<string | null>(null);
   const [lastActionResult, setLastActionResult] = useState<any>(null);
 
   // Determine data source (URL deal or flow data)
+  // No need to map deal anymore since interface is fixed
   const displayData = shouldUseDealHook ? deal : {
     id: 'temp-' + Date.now(),
     counterpartyAddress: data.counterpartyAddress,
@@ -78,17 +86,20 @@ const Step3: FC = () => {
 
     try {
       // Track action attempt
-      trackEvent(`execute_${actionType}_click`, {
+      trackEvent(`execute_${actionType}_click` as any, {
         deal_id: displayData.id,
         amount: displayData.amount,
       });
 
-      const result = await performAction({
-        action: actionType,
-        params: {
-          dealId: displayData.id,
-        }
-      });
+      let result;
+      if (actionType === 'release') {
+        result = await release({ dealId: displayData.id });
+      } else if (actionType === 'refund') {
+        result = await refund({ dealId: displayData.id });
+      } else if (actionType === 'dispute') {
+        // Implement dispute logic or throw
+        throw new Error("Dispute action not yet implemented");
+      }
 
       if (result?.signature) {
         // Track successful action
@@ -103,6 +114,7 @@ const Step3: FC = () => {
       }
     } catch (error) {
       console.error(`${actionType} failed:`, error);
+      setActionError(error instanceof Error ? error.message : "Action failed");
     }
   };
 
@@ -167,7 +179,7 @@ const Step3: FC = () => {
 
   return (
     <EscrowFlowTemplate userName={publicKey.toBase58().slice(0, 8) + "..."}>
-      <EscrowStepLayout progress={<StepIndicator current={4} />}>
+      <EscrowStepLayout progress={<StepIndicator current={4 as any} />}>
 
         {/* Success Alert */}
         {lastActionResult && (
@@ -177,7 +189,7 @@ const Step3: FC = () => {
               Action completed successfully!
               {lastActionResult.signature && (
                 <a
-                  href={`https://explorer.solana.com/tx/${lastActionResult.signature}?cluster=${import.meta.env.VITE_SOLANA_CLUSTER || 'custom'}`}
+                  href={getExplorerUrl(lastActionResult.signature)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 ml-2 underline"
@@ -447,4 +459,4 @@ const Step3: FC = () => {
   );
 };
 
-export default Step3;
+export default Step4;

@@ -9,11 +9,12 @@ import EscrowFlowTemplate from "@/templates/EscrowFlowTemplate";
 import EscrowStepLayout from "@/components/organisms/EscrowStepLayout";
 import StepIndicator from "@/components/molecules/StepIndicator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ArrowRight, WalletMinimal, DollarSign, AlertTriangle, Info, User } from "lucide-react";
+import { ArrowRight, WalletMinimal, DollarSign, AlertTriangle, Info, User, Mail } from "lucide-react";
 import { useEscrowFlow } from "@/hooks/useEscrowFlow";
 import { useEvent } from "@/hooks/useEvent";
-import { useWallet } from "@/hooks/useWallet";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { isValidSolanaAddress } from "@/utils/solana";
+import { API_BASE } from "@/lib/config";
 
 /**
  * Step1 - Create deal draft (NewDeal.tsx)
@@ -35,6 +36,30 @@ const Step1: FC = () => {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isValidating, setIsValidating] = useState(false);
+  const [userEmail, setUserEmail] = useState<string>("");
+  const [userProfile, setUserProfile] = useState<{ emailAddress?: string; displayName?: string } | null>(null);
+
+  // Load user email from profile on mount
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/users/me`, {
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const profile = await response.json();
+          setUserProfile(profile);
+          if (profile.emailAddress) {
+            setUserEmail(profile.emailAddress);
+            setField("userEmail", profile.emailAddress);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch user profile:', error);
+      }
+    };
+    fetchUserProfile();
+  }, [setField]);
 
   // Track page view on mount
   useEffect(() => {
@@ -105,6 +130,14 @@ const Step1: FC = () => {
   const handleNext = async () => {
     setIsValidating(true);
 
+    // Check if user exists in database and has completed profile setup
+    // Users must have email address to create deals (for notifications)
+    if (!userEmail || !userEmail.trim()) {
+      setErrors({ profileSetup: "Please set up your email address in your profile before creating an escrow deal." });
+      setIsValidating(false);
+      return;
+    }
+
     if (!validateForm()) {
       setIsValidating(false);
       return;
@@ -160,7 +193,7 @@ const Step1: FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
           <div className="md:col-span-2">
             <Label htmlFor="title" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Deal Name *
+              Deal Title *
             </Label>
             <Input
               id="title"
@@ -241,6 +274,56 @@ const Step1: FC = () => {
               The wallet address of the person you're trading with
             </p>
           </div>
+
+          <div>
+            <Label htmlFor="counterparty-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Counterparty Email (Optional)
+            </Label>
+            <div className="mt-1 relative rounded-md shadow-sm">
+              <div className="pointer-events-none absolute inset-y-0 left-0 pl-3 flex items-center">
+                <Mail className="text-gray-400 w-5 h-5" />
+              </div>
+              <Input
+                id="counterparty-email"
+                type="email"
+                value={data.counterpartyEmail || ""}
+                onChange={(e) => {
+                  setField("counterpartyEmail", e.target.value);
+                  if (errors.counterpartyEmail) {
+                    setErrors(prev => ({ ...prev, counterpartyEmail: "" }));
+                  }
+                }}
+                placeholder="counterparty@example.com"
+                className={`block w-full rounded-md pl-10 sm:text-sm ${errors.counterpartyEmail ? 'border-red-500' : ''
+                  }`}
+              />
+            </div>
+            {errors.counterpartyEmail && (
+              <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                {errors.counterpartyEmail}
+              </p>
+            )}
+            <p className="mt-1 text-xs text-gray-500">
+              Optional: Email address of the counterparty for notifications. Your email ({userEmail}) will be used automatically based on your role.
+            </p>
+          </div>
+
+          {errors.profileSetup && (
+            <div className="md:col-span-2">
+              <Alert className="border-orange-500 bg-orange-50 dark:bg-orange-950/50">
+                <AlertTriangle className="h-4 w-4 text-orange-600" />
+                <AlertDescription className="text-orange-800 dark:text-orange-200">
+                  <div className="space-y-2">
+                    <p>{errors.profileSetup}</p>
+                    <Button onClick={() => navigate('/profile')} variant="outline" size="sm">
+                      Go to Profile Settings
+                    </Button>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
 
           <div>
             <Label htmlFor="amount" className="block text-sm font-medium text-gray-700 dark:text-gray-300">

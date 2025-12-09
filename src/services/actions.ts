@@ -11,6 +11,8 @@ export interface InitiatePayload {
   disputeDeadline?: number;
   description?: string;
   title?: string;
+  buyerEmail?: string;
+  sellerEmail?: string;
   payer: string;
 }
 
@@ -83,6 +85,8 @@ export async function initiate(payload: InitiatePayload): Promise<ActionResponse
     disputeDeadline: payload.disputeDeadline,
     description: payload.description,
     title: payload.title,
+    buyerEmail: payload.buyerEmail,
+    sellerEmail: payload.sellerEmail,
     payer: payload.payer,
   });
 }

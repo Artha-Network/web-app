@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEvent } from "@/hooks/useEvent";
 import { useMyDeals, statusToBadge, DealRow } from "@/hooks/useDeals";
+import PageLayout from "@/components/layouts/PageLayout";
 import {
   Search,
   Filter,
@@ -122,6 +123,7 @@ const Deals: React.FC = () => {
   }
 
   return (
+    <PageLayout>
     <div className="container mx-auto px-6 py-8">
       <div className="space-y-6">
 
@@ -319,6 +321,7 @@ const Deals: React.FC = () => {
         )}
       </div>
     </div>
+    </PageLayout>
   );
 };
 
@@ -346,7 +349,7 @@ const DealCard: React.FC<DealCardProps> = ({ deal, userWallet, onDealClick }) =>
               <div>
                 <p className="font-semibold">{formatUsd(deal.price_usd)}</p>
                 <p className="text-sm text-muted-foreground">
-                  {deal.title || `Deal ID: ${deal.id.slice(0, 8)}...`}
+                  {deal.title && deal.title.trim() ? deal.title.trim() : `Deal ID: ${deal.id.slice(0, 8)}...`}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   ID: {deal.id.slice(0, 8)}...

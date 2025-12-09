@@ -7,22 +7,22 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Upload, 
-  FileText, 
-  Camera, 
-  MessageSquare, 
-  Shield, 
-  AlertTriangle, 
-  Info, 
+import {
+  Upload,
+  FileText,
+  Camera,
+  MessageSquare,
+  Shield,
+  AlertTriangle,
+  Info,
   Loader,
   CheckCircle2,
   ArrowLeft,
   Brain
 } from "lucide-react";
-import { useWallet } from "@/hooks/useWallet";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useEvent } from "@/hooks/useEvent";
-import { useDeal } from "@/hooks/useDeal";
+import { useDeal } from "@/hooks/useDeals";
 import { useAction } from "@/hooks/useAction";
 
 /**
@@ -40,7 +40,7 @@ const EvidencePage: FC = () => {
   const { publicKey } = useWallet();
   const { trackEvent } = useEvent();
   const navigate = useNavigate();
-  
+
   const { data: deal, isLoading: dealLoading, error: dealError } = useDeal(dealId);
   const { mutateAsync: submitEvidence, isPending: isSubmitting, error: submitError } = useAction('initiate');
 
@@ -60,7 +60,7 @@ const EvidencePage: FC = () => {
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files || []);
     setFiles(prev => [...prev, ...selectedFiles]);
-    
+
     // Track file upload
     selectedFiles.forEach(file => {
       trackEvent('evidence_file_uploaded', {
@@ -168,18 +168,18 @@ const EvidencePage: FC = () => {
   return (
     <div className="container mx-auto px-6 py-8">
       <div className="max-w-4xl mx-auto">
-        
+
         {/* Header */}
         <div className="mb-6">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={() => navigate(`/deal/${dealId}`)}
             className="mb-4"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Deal
           </Button>
-          
+
           <h1 className="text-3xl font-bold mb-2">Submit Evidence</h1>
           <p className="text-muted-foreground">
             Provide evidence for AI arbitration on deal {dealId?.slice(0, 8)}...
@@ -227,7 +227,7 @@ const EvidencePage: FC = () => {
         <Alert className="mb-6">
           <Brain className="h-4 w-4" />
           <AlertDescription>
-            Our AI arbiter will analyze your evidence along with any counterparty submissions to make a fair resolution. 
+            Our AI arbiter will analyze your evidence along with any counterparty submissions to make a fair resolution.
             Be specific and provide clear documentation of your case.
           </AlertDescription>
         </Alert>
@@ -244,31 +244,28 @@ const EvidencePage: FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <button
                 onClick={() => setEvidenceType('text')}
-                className={`p-4 border rounded-lg text-center transition-colors ${
-                  evidenceType === 'text' ? 'border-primary bg-primary/10' : 'border-muted'
-                }`}
+                className={`p-4 border rounded-lg text-center transition-colors ${evidenceType === 'text' ? 'border-primary bg-primary/10' : 'border-muted'
+                  }`}
               >
                 <MessageSquare className="w-8 h-8 mx-auto mb-2" />
                 <h4 className="font-medium">Text Only</h4>
                 <p className="text-xs text-muted-foreground">Written description</p>
               </button>
-              
+
               <button
                 onClick={() => setEvidenceType('file')}
-                className={`p-4 border rounded-lg text-center transition-colors ${
-                  evidenceType === 'file' ? 'border-primary bg-primary/10' : 'border-muted'
-                }`}
+                className={`p-4 border rounded-lg text-center transition-colors ${evidenceType === 'file' ? 'border-primary bg-primary/10' : 'border-muted'
+                  }`}
               >
                 <Upload className="w-8 h-8 mx-auto mb-2" />
                 <h4 className="font-medium">Files Only</h4>
                 <p className="text-xs text-muted-foreground">Documents, images</p>
               </button>
-              
+
               <button
                 onClick={() => setEvidenceType('both')}
-                className={`p-4 border rounded-lg text-center transition-colors ${
-                  evidenceType === 'both' ? 'border-primary bg-primary/10' : 'border-muted'
-                }`}
+                className={`p-4 border rounded-lg text-center transition-colors ${evidenceType === 'both' ? 'border-primary bg-primary/10' : 'border-muted'
+                  }`}
               >
                 <FileText className="w-8 h-8 mx-auto mb-2" />
                 <h4 className="font-medium">Text + Files</h4>
@@ -396,12 +393,12 @@ const EvidencePage: FC = () => {
                 >
                   Cancel
                 </Button>
-                
+
                 <Button
                   onClick={handleSubmit}
                   disabled={
-                    isUploading || 
-                    isSubmitting || 
+                    isUploading ||
+                    isSubmitting ||
                     (!description.trim() && files.length === 0)
                   }
                   className="min-w-[120px]"

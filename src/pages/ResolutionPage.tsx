@@ -4,22 +4,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Brain, 
-  CheckCircle2, 
-  AlertTriangle, 
-  Shield, 
-  ExternalLink, 
-  Clock, 
+import {
+  Brain,
+  CheckCircle2,
+  AlertTriangle,
+  Shield,
+  ExternalLink,
+  Clock,
   DollarSign,
   ArrowLeft,
   Loader,
   FileText,
   Info
 } from "lucide-react";
-import { useWallet } from "@/hooks/useWallet";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useEvent } from "@/hooks/useEvent";
-import { useDeal } from "@/hooks/useDeal";
+import { useDeal } from "@/hooks/useDeals";
 import { useAction } from "@/hooks/useAction";
 
 /**
@@ -37,7 +37,7 @@ const ResolutionPage: FC = () => {
   const { publicKey } = useWallet();
   const { trackEvent } = useEvent();
   const navigate = useNavigate();
-  
+
   const { data: deal, isLoading: dealLoading, error: dealError } = useDeal(dealId);
   const { mutateAsync: executeResolution, isPending: isExecuting, error: executeError } = useAction('release');
 
@@ -145,18 +145,18 @@ const ResolutionPage: FC = () => {
   return (
     <div className="container mx-auto px-6 py-8">
       <div className="max-w-4xl mx-auto">
-        
+
         {/* Header */}
         <div className="mb-6">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={() => navigate(`/deal/${dealId}`)}
             className="mb-4"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Deal
           </Button>
-          
+
           <h1 className="text-3xl font-bold mb-2">AI Arbitration Resolution</h1>
           <p className="text-muted-foreground">
             Final decision for deal {dealId?.slice(0, 8)}...
@@ -211,7 +211,7 @@ const ResolutionPage: FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            
+
             {/* Decision */}
             <div className="text-center p-6 bg-muted rounded-lg">
               <div className="flex items-center justify-center gap-3 mb-3">
@@ -229,7 +229,7 @@ const ResolutionPage: FC = () => {
                   </p>
                 </div>
               </div>
-              
+
               {mockResolution.decision === 'RELEASE' ? (
                 <p className="text-sm text-green-700 dark:text-green-300">
                   The seller has fulfilled their obligations. Funds should be released.
@@ -293,7 +293,7 @@ const ResolutionPage: FC = () => {
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertDescription>
-                  This action will execute the AI arbitration decision on the Solana blockchain. 
+                  This action will execute the AI arbitration decision on the Solana blockchain.
                   Once executed, the decision is final and cannot be reversed.
                 </AlertDescription>
               </Alert>
@@ -355,16 +355,16 @@ const ResolutionPage: FC = () => {
           <CardContent>
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                AI arbitration decisions are designed to be fair and final. However, if you believe 
+                AI arbitration decisions are designed to be fair and final. However, if you believe
                 there was an error in the analysis, you can:
               </p>
-              
+
               <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
                 <li>Contact our support team for a human review</li>
                 <li>Provide additional evidence that wasn't considered</li>
                 <li>Request clarification on the reasoning</li>
               </ul>
-              
+
               <div className="flex gap-3">
                 <Button variant="outline" size="sm">
                   Contact Support

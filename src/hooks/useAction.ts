@@ -15,6 +15,8 @@ interface InitiateVariables {
   disputeDeadline?: number;
   feeBps?: number;
   title?: string;
+  buyerEmail?: string;
+  sellerEmail?: string;
   role?: "buyer" | "seller";
 }
 
@@ -61,6 +63,8 @@ export function useAction<T extends ActionKey>(action: T) {
             disputeDeadline: payload.disputeDeadline,
             description: payload.description,
             title: payload.title,
+            buyerEmail: payload.buyerEmail,
+            sellerEmail: payload.sellerEmail,
             payer: viewerWallet,
           });
           actionVerb = "INITIATE";
@@ -96,15 +100,38 @@ export function useAction<T extends ActionKey>(action: T) {
           throw new Error("Unsupported action");
       }
 
+      // Check if transaction is empty (account already initialized, no transaction needed)
+      if (!response.txMessageBase64 || response.txMessageBase64.trim() === "") {
+        // Account already exists on-chain, skip transaction signing
+        // This happens when initiate is called but the escrow account was already initialized
+        // For INITIATE action, this is fine - the account is already initialized
+        // But we still need to invalidate queries to refresh the UI
+        toast.success("Deal already initialized", { id: undefined });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["my-deals"] }),
+          queryClient.invalidateQueries({ queryKey: ["deal", dealId] }),
+        ]);
+        // Return without txSig since no transaction was sent
+        // Note: For INITIATE, we don't need to call confirm since account is already on-chain
+        return { dealId, txSig: "" };
+      }
+
       const pendingId = toast.loading("Awaiting wallet signature…");
       try {
         const txSig = await signAndSendBase64Tx(response.txMessageBase64);
         toast.loading("Confirming on-chain event…", { id: pendingId });
         await actionsService.confirm({ dealId, txSig, action: actionVerb, actorWallet });
+        
+        // Invalidate all deal-related queries to ensure UI updates
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ["my-deals"] }),
           queryClient.invalidateQueries({ queryKey: ["deal", dealId] }),
+          queryClient.invalidateQueries({ queryKey: ["deal-events"] }),
+          // Force refetch to get latest status
+          queryClient.refetchQueries({ queryKey: ["my-deals"] }),
+          queryClient.refetchQueries({ queryKey: ["deal", dealId] }),
         ]);
+        
         toast.success("Action confirmed on chain", { id: pendingId });
         return { dealId, txSig };
       } catch (error) {

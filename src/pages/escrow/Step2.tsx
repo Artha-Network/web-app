@@ -9,7 +9,7 @@ import EscrowStepLayout from "@/components/organisms/EscrowStepLayout";
 import StepIndicator from "@/components/molecules/StepIndicator";
 import { Brain, CheckCircle2, Loader2, AlertTriangle, ArrowRight, ArrowLeft } from "lucide-react";
 import { useEscrowFlow } from "@/hooks/useEscrowFlow";
-import { useWallet } from "@/hooks/useWallet";
+import { useWallet } from "@solana/wallet-adapter-react";
 
 const Step2: FC = () => {
     const { data, updateData, back } = useEscrowFlow();
@@ -36,8 +36,8 @@ const Step2: FC = () => {
                         counterparty: data.counterpartyAddress,
                         amount: data.amount.toString(),
                         description: data.description,
-                        deliveryDeadline: data.deliverBy?.toISOString(),
-                        disputeDeadline: data.disputeDeadline?.toString(),
+                        deliveryDeadline: data.deliveryDeadline,
+                        disputeDeadline: data.disputeWindowDays?.toString(),
                     }),
                 });
 
@@ -51,6 +51,17 @@ const Step2: FC = () => {
 
                 const result = await response.json();
                 console.log("AI Response data:", result);
+
+                if (result.source === "fallback") {
+                    // Using the error state to show a persistent warning, or we could use a separate warning state.
+                    // The requirement is to notify the user.
+                    // Let's use the setError to show it as a yellow warning if possible, but the Alert component is styled for error.
+                    // Better to just add a toast.
+                    const { toast } = await import("sonner");
+                    toast.warning("AI Service Busy", {
+                        description: "Used fallback template. Please review the contract carefully."
+                    });
+                }
 
                 updateData({
                     contract: result.contract,
@@ -140,7 +151,7 @@ const Step2: FC = () => {
                             )}
 
                             <div className="flex justify-between pt-4">
-                                <Button variant="outline" onClick={() => back(1)}>
+                                <Button variant="outline" onClick={() => back(2)}>
                                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Details
                                 </Button>
                                 <Button onClick={handleContinue} className="bg-green-600 hover:bg-green-700">

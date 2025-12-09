@@ -11,7 +11,7 @@ import StepIndicator from "@/components/molecules/StepIndicator";
 import { ArrowRight, ArrowLeft, Shield, Clock, DollarSign, CheckCircle2, Info, AlertTriangle, Loader } from "lucide-react";
 import { useEscrowFlow } from "@/hooks/useEscrowFlow";
 import { useEvent } from "@/hooks/useEvent";
-import { useWallet } from "@/hooks/useWallet";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useAction } from "@/hooks/useAction";
 
 /**
@@ -32,7 +32,8 @@ const Step2: FC = () => {
   const { trackEvent } = useEvent();
   const navigate = useNavigate();
   const { mutate: initiateEscrow, isPending: isInitiating, error: initiateError } = useAction("initiate");
-  
+  const { mutate: fundEscrow, isPending: isFunding } = useAction("fund");
+
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Track page view on mount
@@ -55,7 +56,7 @@ const Step2: FC = () => {
     if (!dateString) return "Not set";
     return new Date(dateString).toLocaleString('en-US', {
       year: 'numeric',
-      month: 'short', 
+      month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
@@ -67,9 +68,9 @@ const Step2: FC = () => {
       console.error('Wallet not connected');
       return;
     }
-    
+
     setIsProcessing(true);
-    
+
     try {
       // Track funding attempt
       trackEvent('fund_attempt', {
@@ -83,15 +84,58 @@ const Step2: FC = () => {
       const disputeDeadline = data.completionDeadline ? new Date(data.completionDeadline).getTime() / 1000 : undefined;
 
       // Create and initiate the escrow (this includes both creation and funding)
+      // Get user email from profile (should already be set in Step1)
+      // Determine buyer and seller emails based on role
+      // If user is buyer: buyerEmail = user email, sellerEmail = counterparty email
+      // If user is seller: sellerEmail = user email, buyerEmail = counterparty email
+      let buyerEmail: string | undefined;
+      let sellerEmail: string | undefined;
+
+      if (data.role === "buyer") {
+        buyerEmail = data.userEmail || undefined; // User's email from profile
+        sellerEmail = data.counterpartyEmail?.trim() || undefined; // Counterparty email from form
+      } else {
+        sellerEmail = data.userEmail || undefined; // User's email from profile
+        buyerEmail = data.counterpartyEmail?.trim() || undefined; // Counterparty email from form
+      }
+
       initiateEscrow({
         counterparty: data.counterpartyAddress,
         amount: typeof data.amount === 'number' ? data.amount : 0,
         description: data.description,
+        title: data.title?.trim() || undefined, // Pass title from Step1, trim whitespace
         deliverBy,
         disputeDeadline,
         feeBps: 50, // 0.5% fee (50 basis points)
+        buyerEmail,
+        sellerEmail,
       }, {
-        onSuccess: (result) => {
+        onSuccess: async (result) => {
+          // If account was already initialized (empty txSig), proceed to fund
+          if (!result.txSig && result.dealId) {
+            // Account already exists, now fund it
+            fundEscrow({ dealId: result.dealId }, {
+              onSuccess: (fundResult) => {
+                trackEvent('fund_success', {
+                  deal_id: fundResult.dealId,
+                  amount: data.amount,
+                  platform_fee: platformFee,
+                  transaction_signature: fundResult.txSig,
+                });
+                localStorage.setItem('lastCreatedDealId', fundResult.dealId);
+                navigate(`/deal/${fundResult.dealId}`);
+              },
+              onError: (error) => {
+                console.error('Funding failed:', error);
+                trackEvent('fund_failed', {
+                  error: error.message,
+                  amount: data.amount,
+                });
+              },
+            });
+            return;
+          }
+
           // Track successful funding
           trackEvent('fund_success', {
             deal_id: result.dealId,
@@ -170,7 +214,7 @@ const Step2: FC = () => {
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Setup
             </Button>
-            
+
             <Button
               onClick={handleFunding}
               className="flex-1"
@@ -224,7 +268,7 @@ const Step2: FC = () => {
                   <p>{formatDate(data.completionDeadline)}</p>
                 </div>
               </div>
-              
+
               {data.description && (
                 <div>
                   <Label className="text-sm font-medium text-muted-foreground">Description</Label>
@@ -325,7 +369,7 @@ const Step2: FC = () => {
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription>
-              <strong>Secure Escrow:</strong> Your funds will be held in a Solana smart contract. 
+              <strong>Secure Escrow:</strong> Your funds will be held in a Solana smart contract.
               Neither party can access the funds until the deal is completed or resolved through arbitration.
             </AlertDescription>
           </Alert>

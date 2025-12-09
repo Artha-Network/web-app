@@ -17,6 +17,13 @@ export interface DealRow {
 }
 
 export interface DealWithEvents extends DealRow {
+  description?: string;
+  transaction_hash?: string;
+  ai_resolution?: {
+    decision: string;
+    confidence: number;
+    resolved_at: string;
+  };
   onchain_events?: Array<{
     id: string;
     tx_sig: string;
@@ -62,13 +69,22 @@ async function fetchDealById(dealId: string): Promise<DealWithEvents> {
   const data = await response.json();
 
   // Map camelCase to snake_case if needed (backend inconsistency)
+  // Backend returns camelCase from Prisma, but frontend expects snake_case
   return {
     ...data,
-    buyer_wallet: data.buyer_wallet || data.buyerWallet,
-    seller_wallet: data.seller_wallet || data.sellerWallet,
-    deliver_deadline: data.deliver_deadline || data.deliverDeadline,
-    price_usd: data.price_usd || data.priceUsd,
-    onchain_events: data.onchain_events || data.onchainEvents
+    id: data.id,
+    title: data.title || null, // Preserve title (can be null for old deals)
+    buyer_wallet: data.buyer_wallet || data.buyerWallet || null,
+    seller_wallet: data.seller_wallet || data.sellerWallet || null,
+    deliver_deadline: data.deliver_deadline || data.deliverDeadline || null,
+    price_usd: data.price_usd || (data.priceUsd ? data.priceUsd.toString() : "0"),
+    status: data.status,
+    created_at: data.created_at || (data.createdAt ? data.createdAt.toISOString() : new Date().toISOString()),
+    updated_at: data.updated_at || (data.updatedAt ? data.updatedAt.toISOString() : new Date().toISOString()),
+    onchain_events: data.onchain_events || data.onchainEvents || [],
+    description: data.description,
+    transaction_hash: data.transaction_hash || data.transactionHash,
+    ai_resolution: data.ai_resolution || data.aiResolution,
   };
 }
 

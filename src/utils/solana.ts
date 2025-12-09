@@ -18,7 +18,7 @@ export function resolveCluster(input?: string | null): SolanaCluster {
 }
 
 export function getConfiguredCluster(): SolanaCluster {
-  const env = (import.meta as any)?.env ?? {};
-  const value = env.NEXT_PUBLIC_SOLANA_CLUSTER ?? env.VITE_SOLANA_CLUSTER;
+  const env = import.meta.env;
+  const value = env.VITE_SOLANA_CLUSTER;
   return resolveCluster(typeof value === "string" ? value : undefined);
 }

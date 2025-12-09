@@ -1,6 +1,6 @@
 import { FC, useMemo, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useConnection } from '@solana/wallet-adapter-react';
+import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { Banknote, Gavel, CheckCircle2, ArrowRightCircle, Repeat, RefreshCw, Wallet, Globe, DollarSign } from "lucide-react";
 import HeaderBar from "@/components/organisms/HeaderBar";
@@ -13,8 +13,7 @@ import RecentActivityTimeline from "@/components/organisms/RecentActivityTimelin
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useWallet } from "@/hooks/useWallet";
-import { useWalletConnection } from "@/hooks/useWalletConnection";
+import { useAuth } from "@/context/AuthContext"; // Use unified AuthContext
 import { useMyDeals, useRecentDealEvents, statusToBadge, useDeleteDeal } from "@/hooks/useDeals";
 import { useEvent } from "@/hooks/useEvent";
 import { getConfiguredCluster } from '@/utils/solana';
@@ -65,20 +64,19 @@ const fallbackActivities = [
   },
 ];
 
-const shortAddress = (value?: string | null) => {
-  if (!value) return "—";
-  return `${value.slice(0, 4)}…${value.slice(-4)}`;
-};
+import { shortAddress } from "@/utils/format";
 
 const Dashboard: FC = () => {
   const navigate = useNavigate();
   const { publicKey, connected, disconnect, wallet } = useWallet();
   const { connection } = useConnection();
   const { trackEvent } = useEvent();
-  const walletConnection = useWalletConnection();
+
+  // Use unified AuthContext
+  const { isAuthenticated, isLoading: isAuthLoading, user: authUser, error: authError, login: retryAuth } = useAuth();
 
   const [solBalance, setSolBalance] = useState<number | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isBalanceLoading, setIsBalanceLoading] = useState(false);
   const [cluster] = useState(getConfiguredCluster());
   const [debugInfo, setDebugInfo] = useState<{
     rpcEndpoint: string;
@@ -87,7 +85,8 @@ const Dashboard: FC = () => {
   } | null>(null);
 
   const address = publicKey?.toBase58();
-  const userName = address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "User";
+  // Use display name from profile if available, otherwise use wallet address
+  const userName = (authUser?.name || authUser?.displayName) || (address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "User");
 
   // Track wallet connection events
   useEffect(() => {
@@ -104,7 +103,7 @@ const Dashboard: FC = () => {
   const fetchWalletData = async () => {
     if (!publicKey || !connected) return;
 
-    setIsLoading(true);
+    setIsBalanceLoading(true);
     try {
       // Fetch SOL balance
       const solBalance = await connection.getBalance(publicKey);
@@ -127,7 +126,7 @@ const Dashboard: FC = () => {
     } catch (error) {
       console.error('Error fetching wallet data:', error);
     } finally {
-      setIsLoading(false);
+      setIsBalanceLoading(false);
     }
   };
 
@@ -168,9 +167,14 @@ const Dashboard: FC = () => {
     return dealsData.deals.map((deal) => {
       const counterparty = deal.buyer_wallet === address ? deal.seller_wallet : deal.buyer_wallet;
       const deadline = deal.deliver_deadline ? new Date(deal.deliver_deadline).toLocaleDateString() : "—";
+      const dealId = deal.id ?? "";
+      // Use title if available, otherwise fallback to deal ID
+      const displayTitle = deal.title && deal.title.trim()
+        ? deal.title.trim()
+        : (dealId ? `Deal ${dealId.slice(0, 8)}...` : "Untitled Deal");
       return {
         id: deal.id,
-        title: deal.title || `Deal ${deal.id.slice(0, 6)}`,
+        title: displayTitle,
         counterparty: shortAddress(counterparty),
         amountUsd: Number(deal.price_usd ?? 0),
         deadline,
@@ -182,13 +186,14 @@ const Dashboard: FC = () => {
   const recentActivities = useMemo(() => {
     if (!eventsData || !eventsData.length) return fallbackActivities;
     return eventsData.map((evt) => {
-      const instruction = evt.instruction.toUpperCase();
+      const instruction = (evt.instruction || "unknown").toUpperCase();
       const icon = instruction === "FUND" ? <CheckCircle2 /> : instruction === "RELEASE" ? <ArrowRightCircle /> : <Repeat />;
       const colorClass = instruction === "FUND" ? "text-green-600" : instruction === "RELEASE" ? "text-blue-600" : "text-purple-600";
+      const txSig = evt.tx_sig ?? "";
       return {
         id: evt.id,
         icon,
-        title: `${instruction} confirmed (${evt.tx_sig.slice(0, 6)}…)`,
+        title: `${instruction} confirmed (${txSig.slice(0, 6)}…)`,
         date: evt.created_at ? new Date(evt.created_at).toLocaleString() : "",
         colorClass,
       };
@@ -223,9 +228,9 @@ const Dashboard: FC = () => {
                       variant="outline"
                       size="sm"
                       onClick={handleRefresh}
-                      disabled={isLoading}
+                      disabled={isBalanceLoading}
                     >
-                      <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                      <RefreshCw className={`w-4 h-4 mr-2 ${isBalanceLoading ? 'animate-spin' : ''}`} />
                       Refresh
                     </Button>
                     <Button
@@ -254,7 +259,7 @@ const Dashboard: FC = () => {
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">SOL Balance</label>
                     <div className="flex items-center gap-2">
-                      {isLoading ? (
+                      {isBalanceLoading ? (
                         <div className="h-6 w-24 bg-muted animate-pulse rounded" />
                       ) : (
                         <span className="font-semibold">
@@ -273,34 +278,48 @@ const Dashboard: FC = () => {
 
                 {/* Wallet Verification Status */}
                 <div className="mt-4 pt-4 border-t">
-                  {walletConnection.isVerifying ? (
+                  {isAuthLoading ? (
                     <div className="flex items-center gap-2 text-sm text-blue-600">
                       <RefreshCw className="w-4 h-4 animate-spin" />
                       <span>Verifying wallet ownership...</span>
                     </div>
-                  ) : walletConnection.isVerified ? (
+                  ) : isAuthenticated ? (
                     <div className="flex items-center gap-2 text-sm text-green-600">
                       <CheckCircle2 className="w-4 h-4" />
                       <span>Wallet verified and authenticated</span>
-                      {walletConnection.userId && (
-                        <Badge variant="secondary" className="ml-2">User ID: {walletConnection.userId.slice(0, 8)}</Badge>
+                      {authUser?.id && (
+                        <Badge variant="secondary" className="ml-2">User ID: {authUser.id.slice(0, 8)}</Badge>
                       )}
                     </div>
-                  ) : walletConnection.error ? (
+                  ) : authError ? (
                     <div className="flex flex-col gap-2">
                       <div className="flex items-center gap-2 text-sm text-red-600">
-                        <span>⚠️ {walletConnection.error}</span>
+                        <span>⚠️ {authError}</span>
                       </div>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={walletConnection.retry}
+                        onClick={retryAuth}
                         className="w-fit"
                       >
                         Retry Verification
                       </Button>
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2 text-sm text-orange-600">
+                        <span>⚠️ Wallet connected but not authenticated</span>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={retryAuth}
+                        className="w-fit"
+                      >
+                        Verify Now
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Debug Info Panel */}

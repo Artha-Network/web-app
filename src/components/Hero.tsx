@@ -1,20 +1,31 @@
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Shield, Zap, Brain } from "lucide-react";
 import { useModalContext } from "@/context/ModalContext";
 import { useEvent } from "@/hooks/useEvent";
+import { useAuth } from "@/context/AuthContext";
 import heroBg from "@/assets/hero-bg.jpg";
 
 const Hero = () => {
   const { openWalletModal } = useModalContext();
   const { trackEvent } = useEvent();
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
 
-  const handleGetStartedClick = () => {
-    trackEvent('cta_get_started', { 
-      cta_type: 'connect_wallet',
-      source: 'hero_button' 
-    });
-    openWalletModal();
+  const handleConnectWalletClick = () => {
+    if (isAuthenticated) {
+      trackEvent('cta_get_started', { 
+        cta_type: 'go_to_dashboard',
+        source: 'hero_button' 
+      });
+      navigate('/dashboard');
+    } else {
+      trackEvent('cta_get_started', { 
+        cta_type: 'connect_wallet',
+        source: 'hero_button' 
+      });
+      openWalletModal();
+    }
   };
 
   const handleDocumentationClick = () => {
@@ -80,12 +91,13 @@ const Hero = () => {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <button
-              onClick={handleGetStartedClick}
-              className="px-8 py-4 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-semibold text-lg shadow-lg hover:shadow-xl transform hover:scale-105"
+            <Button
+              onClick={handleConnectWalletClick}
+              size="lg"
+              className="px-8 rounded-full shadow-lg hover:shadow-xl transform hover:scale-105"
             >
-              Get Started
-            </button>
+              {isAuthenticated ? 'Dashboard' : 'Connect Wallet'}
+            </Button>
             <Link to="/docs" onClick={handleDocumentationClick}>
               <Button variant="outline" size="lg" className="border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition">
                 View Documentation

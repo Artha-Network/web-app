@@ -27,14 +27,14 @@ export const HeaderBar: FC<HeaderBarProps> = ({
       )}
       aria-label="Top navigation bar"
     >
-      <div className="flex items-center gap-4 text-gray-900">
+      <Link to="/" className="flex items-center gap-4 text-gray-900 hover:text-blue-600 transition-colors">
         <div className="size-4 text-gray-900" aria-hidden>
           <Diamond className="w-full h-full" />
         </div>
         <h1 className="text-gray-900 text-lg font-bold leading-tight tracking-[-0.015em]">
           Artha Network
         </h1>
-      </div>
+      </Link>
 
       <div className="flex flex-1 justify-end gap-8">
         <nav className="flex items-center gap-9" aria-label="Primary">

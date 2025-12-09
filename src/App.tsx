@@ -13,7 +13,7 @@ import Step2 from "./pages/escrow/Step2";
 import Step3 from "./pages/escrow/Step3";
 import Step4 from "./pages/escrow/Step4";
 import Dashboard from "./pages/Dashboard";
-import WalletConnectDashboard from "./pages/wallet-connect/Dashboard";
+import WalletConnectDashboard from "./pages/wallet-connect/WalletConnect";
 import Deals from "./pages/Deals";
 import DealOverview from "./pages/DealOverview";
 import EvidencePage from "./pages/EvidencePage";
@@ -23,9 +23,11 @@ import Dispute from "./pages/Dispute";
 import Profile from "./pages/Profile";
 import Notifications from "./pages/Notifications";
 import { ModalProvider, useModalContext } from "@/context/ModalContext";
+import { AuthProvider } from "@/context/AuthContext";
 import WalletConnectModal from "@/components/modals/WalletConnectModal";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import SolanaWalletProvider from "@/providers/SolanaWalletProvider";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const queryClient = new QueryClient();
 
@@ -37,12 +39,16 @@ const App = () => {
         <Sonner />
         <SolanaWalletProvider>
           <ModalProvider>
-            <BrowserRouter future={{
-              v7_startTransition: true,
-              v7_relativeSplatPath: true
-            }}>
-              <AppWithModal />
-            </BrowserRouter>
+            <AuthProvider>
+              <BrowserRouter future={{
+                v7_startTransition: true,
+                v7_relativeSplatPath: true
+              }}>
+                <ErrorBoundary>
+                  <AppWithModal />
+                </ErrorBoundary>
+              </BrowserRouter>
+            </AuthProvider>
           </ModalProvider>
         </SolanaWalletProvider>
       </TooltipProvider>
