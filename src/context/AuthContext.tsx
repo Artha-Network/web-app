@@ -96,10 +96,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Reset auth attempt when wallet disconnects
     useEffect(() => {
         if (!connected) {
+            // Clear local state
             setAuthAttempted(false);
             setIsAuthenticated(false);
             setUser(null);
             setError(null);
+
+            // Clear backend session to prevent stale session access
+            fetch(`${API_BASE}/api/session/logout`, {
+                method: 'POST',
+                credentials: 'include'
+            }).catch(err => {
+                console.error('Failed to clear session on wallet disconnect:', err);
+                // Continue anyway - local state is already cleared
+            });
         }
     }, [connected]);
 

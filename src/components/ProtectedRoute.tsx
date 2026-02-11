@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Loader2 } from "lucide-react";
@@ -13,6 +13,21 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { isAuthenticated, isLoading, user } = useAuth();
   const { connected, connecting } = useWallet();
   const location = useLocation();
+  const [waitingForWallet, setWaitingForWallet] = useState(true);
+
+  // Grace period for wallet auto-connect
+  useEffect(() => {
+    if (isAuthenticated && !connected && !connecting) {
+      // Give wallet 2 seconds to auto-connect
+      const timer = setTimeout(() => {
+        setWaitingForWallet(false);
+      }, 2000);
+      return () => clearTimeout(timer);
+    } else if (connected) {
+      // Wallet is connected, no need to wait
+      setWaitingForWallet(false);
+    }
+  }, [isAuthenticated, connected, connecting]);
 
   if (isLoading) {
     return (
@@ -22,12 +37,20 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     );
   }
 
-  // If user has valid session, allow access even if wallet isn't connected yet
-  // (they may have refreshed the page and wallet is auto-connecting)
-  // Only redirect if they have no session at all
-  if (!isAuthenticated) {
+  // Check authentication and wallet connection
+  // Allow a grace period for wallet auto-connect to complete
+  if (!isAuthenticated || (!connected && !waitingForWallet && !connecting)) {
     // Store the attempted location so we can redirect back after login
     return <Navigate to="/" state={{ from: location }} replace />;
+  }
+
+  // Still waiting for wallet to auto-connect - show loading
+  if (isAuthenticated && !connected && (waitingForWallet || connecting)) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   // Check if user is new (doesn't exist in database yet)

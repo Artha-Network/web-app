@@ -18,6 +18,7 @@ import { useMyDeals, useRecentDealEvents, statusToBadge, useDeleteDeal } from "@
 import { useEvent } from "@/hooks/useEvent";
 import { getConfiguredCluster } from '@/utils/solana';
 import type { DealCardProps } from "@/components/molecules/DealCard";
+import WalletConnectModal from "@/components/modals/WalletConnectModal";
 
 const mockNotifications = [
   {
@@ -83,6 +84,7 @@ const Dashboard: FC = () => {
     walletAddress: string;
     balanceSource: string;
   } | null>(null);
+  const [showConnectModal, setShowConnectModal] = useState(false);
 
   const address = publicKey?.toBase58();
   // Use display name from profile if available, otherwise use wallet address
@@ -98,6 +100,14 @@ const Dashboard: FC = () => {
       });
     }
   }, [connected, publicKey, wallet, cluster, trackEvent]);
+
+  // Detect auth/wallet mismatch and prompt user to reconnect
+  useEffect(() => {
+    if (isAuthenticated && !connected && !isAuthLoading) {
+      // User has a valid backend session but wallet is disconnected
+      setShowConnectModal(true);
+    }
+  }, [isAuthenticated, connected, isAuthLoading]);
 
   // Fetch wallet balances
   const fetchWalletData = async () => {
@@ -376,6 +386,18 @@ const Dashboard: FC = () => {
           </aside>
         </main>
       </div>
+
+      {/* Wallet Connect Modal - shown when authenticated but wallet disconnected */}
+      <WalletConnectModal
+        open={showConnectModal}
+        onOpenChange={(open) => {
+          setShowConnectModal(open);
+          if (!open && !connected) {
+            // User dismissed modal without connecting - redirect to home
+            navigate('/');
+          }
+        }}
+      />
     </div>
   );
 };
