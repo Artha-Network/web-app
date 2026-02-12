@@ -9,7 +9,7 @@ import heroBg from "@/assets/hero-bg.jpg";
 const Hero = () => {
   const { openWalletModal } = useModalContext();
   const { trackEvent } = useEvent();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
 
   const handleConnectWalletClick = () => {
@@ -95,8 +95,9 @@ const Hero = () => {
               onClick={handleConnectWalletClick}
               size="lg"
               className="px-8 rounded-full shadow-lg hover:shadow-xl transform hover:scale-105"
+              disabled={isLoading}
             >
-              {isAuthenticated ? 'Dashboard' : 'Connect Wallet'}
+              {isLoading ? 'Loading...' : (isAuthenticated ? 'Dashboard' : 'Connect Wallet')}
             </Button>
             <Link to="/docs" onClick={handleDocumentationClick}>
               <Button variant="outline" size="lg" className="border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition">

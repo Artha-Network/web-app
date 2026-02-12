@@ -32,7 +32,6 @@ const Step2: FC = () => {
   const { trackEvent } = useEvent();
   const navigate = useNavigate();
   const { mutate: initiateEscrow, isPending: isInitiating, error: initiateError } = useAction("initiate");
-  const { mutate: fundEscrow, isPending: isFunding } = useAction("fund");
 
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -111,32 +110,17 @@ const Step2: FC = () => {
         sellerEmail,
       }, {
         onSuccess: async (result) => {
-          // If account was already initialized (empty txSig), proceed to fund
-          if (!result.txSig && result.dealId) {
-            // Account already exists, now fund it
-            fundEscrow({ dealId: result.dealId }, {
-              onSuccess: (fundResult) => {
-                trackEvent('fund_success', {
-                  deal_id: fundResult.dealId,
-                  amount: data.amount,
-                  platform_fee: platformFee,
-                  transaction_signature: fundResult.txSig,
-                });
-                localStorage.setItem('lastCreatedDealId', fundResult.dealId);
-                navigate(`/deal/${fundResult.dealId}`);
-              },
-              onError: (error) => {
-                console.error('Funding failed:', error);
-                trackEvent('fund_failed', {
-                  error: error.message,
-                  amount: data.amount,
-                });
-              },
+          // Validate that we have a transaction signature
+          if (!result.txSig) {
+            console.error('Initiate succeeded but no transaction signature received');
+            trackEvent('fund_failed', {
+              error: 'No transaction signature from initiate',
+              amount: data.amount,
             });
             return;
           }
 
-          // Track successful funding
+          // Track successful initiation
           trackEvent('fund_success', {
             deal_id: result.dealId,
             amount: data.amount,

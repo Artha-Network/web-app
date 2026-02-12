@@ -33,6 +33,23 @@ export const useAuth = () => {
     return context;
 };
 
+const APP_NAME = 'Artha Network';
+
+// Helper: Generate nonce
+function generateNonce(): string {
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
+// Helper: Create canonical message
+function createCanonicalMessage(nonce: string, timestamp: number): string {
+    return JSON.stringify({
+        app: APP_NAME,
+        action: "session_confirm",
+        nonce,
+        ts: timestamp
+    });
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { publicKey, signMessage, disconnect, connected } = useWallet();
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -40,28 +57,72 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [user, setUser] = useState<User | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [authAttempted, setAuthAttempted] = useState(false);
+    const heartbeatIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
 
     const clearError = useCallback(() => setError(null), []);
+
+    // Heartbeat function to keep session alive
+    const sendHeartbeat = useCallback(async () => {
+        try {
+            await fetch(`${API_BASE}/auth/keepalive`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+        } catch (err) {
+            console.error('Heartbeat failed:', err);
+            // If heartbeat fails, session might be expired
+            setIsAuthenticated(false);
+            setUser(null);
+        }
+    }, []);
+
+    // Setup heartbeat interval when authenticated
+    useEffect(() => {
+        if (isAuthenticated) {
+            // Send heartbeat every 5 minutes (300 seconds)
+            heartbeatIntervalRef.current = setInterval(sendHeartbeat, 5 * 60 * 1000);
+            // Also send heartbeat on user activity
+            const handleActivity = () => {
+                sendHeartbeat();
+            };
+            window.addEventListener('mousedown', handleActivity);
+            window.addEventListener('keydown', handleActivity);
+            window.addEventListener('scroll', handleActivity);
+
+            return () => {
+                if (heartbeatIntervalRef.current) {
+                    clearInterval(heartbeatIntervalRef.current);
+                }
+                window.removeEventListener('mousedown', handleActivity);
+                window.removeEventListener('keydown', handleActivity);
+                window.removeEventListener('scroll', handleActivity);
+            };
+        } else {
+            if (heartbeatIntervalRef.current) {
+                clearInterval(heartbeatIntervalRef.current);
+                heartbeatIntervalRef.current = null;
+            }
+        }
+    }, [isAuthenticated, sendHeartbeat]);
 
     // Check existing session on mount
     const checkSession = useCallback(async (controller: AbortController, isCancelled: () => boolean) => {
         const timeout = setTimeout(() => controller.abort(), 8000);
 
         try {
-            const res = await fetch(`${API_BASE}/api/session/me`, { credentials: 'include', signal: controller.signal });
+            const res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include', signal: controller.signal });
             if (res.ok) {
                 const data = await res.json();
                 if (!isCancelled()) {
                     setIsAuthenticated(true);
-                    // User object may include: wallet, id, name, displayName, emailAddress, profileComplete, isNewUser
                     setUser({
-                        wallet: data.user.wallet,
+                        wallet: data.user.walletAddress,
                         id: data.user.id,
-                        name: data.user.name || data.user.displayName,
+                        name: data.user.displayName,
                         displayName: data.user.displayName,
                         emailAddress: data.user.emailAddress,
                         profileComplete: data.user.profileComplete,
-                        isNewUser: data.user.isNewUser,
+                        isNewUser: data.user.isNewUser ?? !data.user.profileComplete, // New if profile incomplete
                     });
                 }
             } else {
@@ -119,44 +180,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsLoading(true);
         setError(null);
         try {
-            // 1. Get Challenge
-            const challengeRes = await fetch(`${API_BASE}/api/session/challenge`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ wallet: publicKey.toBase58() })
-            });
-
-            if (!challengeRes.ok) throw new Error('Failed to get challenge');
-            const { challenge } = await challengeRes.json();
+            // 1. Create canonical message
+            const nonce = generateNonce();
+            const timestamp = Date.now();
+            const message = createCanonicalMessage(nonce, timestamp);
 
             // 2. Sign Message
-            const message = new TextEncoder().encode(challenge);
-            const signature = await signMessage(message);
+            const messageBytes = new TextEncoder().encode(message);
+            const signature = await signMessage(messageBytes);
 
-            // 3. Verify Signature
-            const verifyRes = await fetch(`${API_BASE}/api/session/verify`, {
+            // 3. Send to sign-in endpoint
+            const signInRes = await fetch(`${API_BASE}/auth/sign-in`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
                 body: JSON.stringify({
-                    wallet: publicKey.toBase58(),
+                    pubkey: publicKey.toBase58(),
+                    message: message,
                     signature: Array.from(signature)
                 })
             });
 
-            if (!verifyRes.ok) throw new Error('Verification failed');
+            if (!signInRes.ok) {
+                const errorData = await signInRes.json().catch(() => ({ error: 'Authentication failed' }));
+                throw new Error(errorData.error || 'Authentication failed');
+            }
 
-            const data = await verifyRes.json();
+            const data = await signInRes.json();
             setIsAuthenticated(true);
-            // User object may include: wallet, id, name, displayName, emailAddress, profileComplete, isNewUser
+            const profileComplete = !!(data.user.displayName && data.user.emailAddress);
             setUser({
-                wallet: data.user.wallet,
+                wallet: data.user.walletAddress,
                 id: data.user.id,
-                name: data.user.name || data.user.displayName,
+                name: data.user.displayName,
                 displayName: data.user.displayName,
                 emailAddress: data.user.emailAddress,
-                profileComplete: data.user.profileComplete,
-                isNewUser: data.user.isNewUser,
+                profileComplete,
+                isNewUser: !profileComplete, // New if profile incomplete
             });
 
         } catch (err: any) {
@@ -171,11 +231,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const logout = async () => {
         try {
-            await fetch(`${API_BASE}/api/session/logout`, { method: 'POST', credentials: 'include' });
+            await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' });
         } finally {
             setIsAuthenticated(false);
             setUser(null);
             setError(null);
+            if (heartbeatIntervalRef.current) {
+                clearInterval(heartbeatIntervalRef.current);
+                heartbeatIntervalRef.current = null;
+            }
             disconnect();
         }
     };
@@ -185,22 +249,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const timeout = setTimeout(() => controller.abort(), 8000);
 
         try {
-            const res = await fetch(`${API_BASE}/api/session/me`, { credentials: 'include', signal: controller.signal });
+            const res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include', signal: controller.signal });
             if (res.ok) {
                 const data = await res.json();
                 setIsAuthenticated(true);
                 setUser({
-                    wallet: data.user.wallet,
+                    wallet: data.user.walletAddress,
                     id: data.user.id,
-                    name: data.user.name || data.user.displayName,
+                    name: data.user.displayName,
                     displayName: data.user.displayName,
                     emailAddress: data.user.emailAddress,
                     profileComplete: data.user.profileComplete,
-                    isNewUser: data.user.isNewUser,
+                    isNewUser: data.user.isNewUser ?? !data.user.profileComplete, // New if profile incomplete
                 });
+            } else {
+                setIsAuthenticated(false);
+                setUser(null);
             }
         } catch (err) {
             console.error('Failed to refresh user:', err);
+            setIsAuthenticated(false);
+            setUser(null);
         } finally {
             clearTimeout(timeout);
         }

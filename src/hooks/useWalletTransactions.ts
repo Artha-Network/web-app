@@ -53,29 +53,29 @@ export function useWalletTransactions() {
 
         return signature;
       } catch (err: any) {
-        // Best-effort: log simulation details to help debugging 'program does not exist' errors
-        // Some wallet adapters / @solana/web3.js throw SendTransactionError which exposes getLogs()
+        // Log error details for debugging
+        const errorMessage = err?.message || '';
+        const errorLogs = err?.logs || [];
+        
         try {
-          // If the error object has getLogs, call it with the current connection
+          // Best-effort: log simulation details to help debugging
           if (typeof err.getLogs === 'function') {
-            // getLogs may return an array of log strings or a formatted object
-            // await in case it's async
             // eslint-disable-next-line no-console
-            console.error('SendTransactionError simulation logs:', await err.getLogs(connection));
+            console.error('Transaction simulation failed:', await err.getLogs(connection));
           } else if (err.logs) {
-            // Some errors include a logs property
             // eslint-disable-next-line no-console
-            console.error('Simulation logs (err.logs):', err.logs);
+            console.error('Transaction simulation failed:', err.logs);
           } else {
             // eslint-disable-next-line no-console
-            console.error('Transaction send failed (no logs available):', err?.message ?? err);
+            console.error('Transaction send failed:', err?.message ?? err);
           }
         } catch (logErr) {
           // eslint-disable-next-line no-console
           console.error('Failed to extract simulation logs:', logErr);
         }
 
-        // Re-throw the original error so callers can display or handle it
+        // Always throw the error - no mock signatures or silent failures
+        // This ensures blockchain errors are properly surfaced to users
         throw err;
       }
     },
