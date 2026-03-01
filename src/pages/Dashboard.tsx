@@ -13,21 +13,15 @@ import RecentActivityTimeline from "@/components/organisms/RecentActivityTimelin
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/context/AuthContext"; // Use unified AuthContext
 import { useModalContext } from "@/context/ModalContext";
 import { useMyDeals, useRecentDealEvents, statusToBadge, useDeleteDeal } from "@/hooks/useDeals";
 import { useEvent } from "@/hooks/useEvent";
+import { useNotifications } from "@/hooks/useNotifications";
 import { getConfiguredCluster } from '@/utils/solana';
 import type { DealCardProps } from "@/components/molecules/DealCard";
 import WalletConnectModal from "@/components/modals/WalletConnectModal";
-
-const INSTRUCTION_NOTIFICATION_MAP: Record<string, { icon: JSX.Element; colorClass: string }> = {
-  FUND: { icon: <Banknote className="text-green-600 w-7 h-7" aria-hidden />, colorClass: "text-green-600" },
-  RELEASE: { icon: <ArrowRightCircle className="text-blue-600 w-7 h-7" aria-hidden />, colorClass: "text-blue-600" },
-  REFUND: { icon: <Repeat className="text-purple-600 w-7 h-7" aria-hidden />, colorClass: "text-purple-600" },
-  OPEN_DISPUTE: { icon: <Gavel className="text-red-600 w-7 h-7" aria-hidden />, colorClass: "text-red-600" },
-  RESOLVE: { icon: <CheckCircle2 className="text-amber-600 w-7 h-7" aria-hidden />, colorClass: "text-amber-600" },
-};
 
 const fallbackActivities = [
   {
@@ -83,6 +77,9 @@ const Dashboard: FC = () => {
   
   // Get modal context for opening wallet modal
   const { openWalletModal } = useModalContext();
+
+  // Real notifications
+  const { data: notificationsData } = useNotifications();
 
   // Track wallet connection events
   useEffect(() => {
@@ -156,7 +153,7 @@ const Dashboard: FC = () => {
     }
   };
 
-  const { data: dealsData } = useMyDeals();
+  const { data: dealsData, isLoading: isDealsLoading } = useMyDeals();
   const { data: eventsData } = useRecentDealEvents(6);
 
   const dealCards: ReadonlyArray<DealCardProps & { id: string }> = useMemo(() => {
@@ -371,8 +368,8 @@ const Dashboard: FC = () => {
                   )}
                 </div>
 
-                {/* Debug Info Panel */}
-                {debugInfo && (
+                {/* Debug Info Panel — dev only */}
+                {import.meta.env.DEV && debugInfo && (
                   <div className="mt-4 pt-4 border-t bg-blue-50 dark:bg-blue-950 p-3 rounded-md">
                     <p className="text-xs font-semibold text-blue-800 dark:text-blue-200 mb-2">🔍 Debug Information</p>
                     <div className="space-y-1 text-xs text-blue-700 dark:text-blue-300">
@@ -405,7 +402,13 @@ const Dashboard: FC = () => {
             <h2 className="text-gray-900 text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
               Your Active Deals
             </h2>
-            {dealCards.length === 0 ? (
+            {isDealsLoading ? (
+              <div className="px-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-36 rounded-xl" />
+                ))}
+              </div>
+            ) : dealCards.length === 0 ? (
               <div className="px-4 py-6 text-sm text-muted-foreground">No deals found for this wallet yet.</div>
             ) : (
               <ActiveDealsGrid deals={dealCards} onDelete={handleDeleteDeal} />
@@ -413,12 +416,19 @@ const Dashboard: FC = () => {
           </div>
 
           <aside className="layout-content-container flex flex-col w-[360px] gap-4">
-            <ReputationScoreCard score={authUser?.reputationScore ?? 0} />
+            <ReputationScoreCard score={Number(authUser?.reputationScore ?? 0)} />
 
             <h2 className="text-gray-900 text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
               Notifications
             </h2>
-            <NotificationsList items={notifications} />
+            <NotificationsList items={(notificationsData?.notifications ?? []).slice(0, 5).map((n) => ({
+              id: n.id,
+              icon: n.type === "dispute" ? <Gavel className="text-red-600 w-7 h-7" aria-hidden /> :
+                    n.type === "resolution" ? <CheckCircle2 className="text-blue-600 w-7 h-7" aria-hidden /> :
+                    <Banknote className="text-green-600 w-7 h-7" aria-hidden />,
+              title: n.title,
+              date: new Date(n.created_at).toLocaleDateString(),
+            }))} />
 
             <h2 className="text-gray-900 text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
               Recent Activity

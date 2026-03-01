@@ -4,6 +4,17 @@ import { z } from "zod";
 
 export type FundingMethod = "Wallet" | "Sponsored" | "Manual Transfer";
 
+export interface CarMetadata {
+  year?: number | "";
+  make?: string;
+  model?: string;
+  vin?: string;
+  odometerMiles?: number | "";
+  deliveryType?: "local_pickup" | "same_city_carrier" | "cross_country_carrier";
+  hasTitleInHand?: boolean;
+  isSalvageTitle?: boolean;
+}
+
 export interface EscrowFlowData {
   title: string;
   role: "buyer" | "seller";
@@ -19,6 +30,8 @@ export interface EscrowFlowData {
   disputeWindowDays: number | "";
   contract?: string;
   questions?: string[];
+  isCarSale?: boolean;
+  carMetadata?: CarMetadata;
 }
 
 // Zod schema for runtime validation
@@ -35,6 +48,17 @@ const EscrowFlowSchema = z.object({
   disputeWindowDays: z.union([z.number(), z.literal("")]).optional().default(""),
   contract: z.string().optional(),
   questions: z.array(z.string()).optional(),
+  isCarSale: z.boolean().optional().default(false),
+  carMetadata: z.object({
+    year: z.union([z.number(), z.literal("")]).optional(),
+    make: z.string().optional(),
+    model: z.string().optional(),
+    vin: z.string().optional(),
+    odometerMiles: z.union([z.number(), z.literal("")]).optional(),
+    deliveryType: z.enum(["local_pickup", "same_city_carrier", "cross_country_carrier"]).optional(),
+    hasTitleInHand: z.boolean().optional(),
+    isSalvageTitle: z.boolean().optional(),
+  }).optional(),
 });
 
 const STORAGE_KEY = "artha:escrow-flow";
@@ -54,6 +78,8 @@ const defaultData: EscrowFlowData = {
   disputeWindowDays: "",
   contract: "",
   questions: [],
+  isCarSale: false,
+  carMetadata: {},
 };
 
 export function useEscrowFlow() {

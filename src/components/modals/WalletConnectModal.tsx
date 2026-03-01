@@ -44,53 +44,56 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ open, on
   // Use provider-managed wallet adapters only — never create separate adapter instances
   const wallets = providerWallets ?? [];
 
-  const findWallet = useCallback(
-    (provider: string) => wallets.find(w => w.adapter.name.toLowerCase().includes(provider)),
-    [wallets]
-  );
-
-  // Extension detection state (checked once on open + after a brief delay for late-loading extensions)
-  const [extensionState, setExtensionState] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    if (!open) return;
-    const check = () => {
-      setExtensionState({
-        phantom: detectExtension("phantom"),
-        solflare: detectExtension("solflare"),
+    async function handleConnectionSuccess() {
+      console.log('[WalletConnectModal] Effect fired:', {
+        open,
+        connected,
+        hasPublicKey: !!publicKey,
+        isAuthenticated,
+        isLoading,
+        authError
       });
-    };
-    check();
-    // Extensions may inject after DOMContentLoaded — recheck once after 1s
-    const timer = setTimeout(check, 1000);
-    return () => clearTimeout(timer);
-  }, [open]);
 
-  // After authentication succeeds, upsert wallet and navigate to dashboard
-  useEffect(() => {
-    if (!(open && connected && publicKey && isAuthenticated && !isLoading)) return;
-    let cancelled = false;
+      if (!(open && connected && publicKey)) return;
 
-    (async () => {
-      const address = publicKey.toBase58();
-      const network = getConfiguredCluster();
-      try {
-        const baseUrl = import.meta.env.VITE_ACTIONS_SERVER_URL || "http://localhost:4000";
-        const res = await fetch(`${baseUrl}/auth/upsert-wallet`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ walletAddress: address, network }),
-        });
-        if (res.ok) {
-          const payload = (await res.json()) as WalletIdentityResponse;
-          if (!cancelled) {
-            try { localStorage.setItem(USER_ID_STORAGE_KEY, payload.userId); } catch { /* noop */ }
+        const address = publicKey.toBase58();
+        console.log("[WalletConnectModal] Wallet connected:", address);
+
+      // Wait for authentication to complete (message signing required)
+      // AuthContext auto-triggers login when wallet connects, so we just wait for it
+      if (isLoading) {
+        console.log('[WalletConnectModal] Still authenticating, waiting...');
+        // Still loading/authenticating, wait...
+        return;
+      }
+
+      // Only navigate after authentication is complete
+      if (isAuthenticated && !cancelled) {
+        console.log('[WalletConnectModal] Authentication complete, upserting wallet and navigating...');
+        const network = getConfiguredCluster();
+        try {
+          const ACTIONS_BASE_URL = import.meta.env.VITE_ACTIONS_SERVER_URL || 'http://localhost:4000';
+          const response = await fetch(`${ACTIONS_BASE_URL}/auth/upsert-wallet`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ walletAddress: address, network }),
+          });
+
+          if (!response.ok) {
+            const message = await response.text();
+            console.error("Wallet upsert failed:", message);
+          } else {
+            const payload = (await response.json()) as WalletIdentityResponse;
+            if (!cancelled) {
+            persistUserIdentity(payload);
+            }
           }
         }
-      } catch (err) {
-        if (!cancelled) console.error("Wallet upsert failed", err);
-      }
-      if (!cancelled) {
+
+        if (!cancelled) {
+        console.log('[WalletConnectModal] Closing modal and navigating to dashboard');
         onOpenChange(false);
         navigate("/dashboard", { replace: true });
       }

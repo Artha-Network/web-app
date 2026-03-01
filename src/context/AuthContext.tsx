@@ -169,17 +169,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const login = useCallback(async () => {
         if (!publicKey || !signMessage) return;
 
+        console.log('[AuthContext] Login started for wallet:', publicKey.toBase58());
         setIsLoading(true);
         setError(null);
         try {
-            const nonce = generateNonce();
-            const timestamp = Date.now();
-            const message = createCanonicalMessage(nonce, timestamp);
+            // 1. Get Challenge
+            console.log('[AuthContext] Requesting challenge...');
+            const challengeRes = await fetch(`${API_BASE}/api/session/challenge`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ wallet: publicKey.toBase58() })
+            });
 
-            const messageBytes = new TextEncoder().encode(message);
-            const signature = await signMessage(messageBytes);
+            if (!challengeRes.ok) throw new Error('Failed to get challenge');
+            const { challenge } = await challengeRes.json();
+            console.log('[AuthContext] Challenge received');
 
-            const signInRes = await fetch(`${API_BASE}/auth/sign-in`, {
+            // 2. Sign Message
+            console.log('[AuthContext] Requesting signature...');
+            const message = new TextEncoder().encode(challenge);
+            const signature = await signMessage(message);
+            console.log('[AuthContext] Signature received');
+
+            // 3. Verify Signature
+            console.log('[AuthContext] Verifying signature...');
+            const verifyRes = await fetch(`${API_BASE}/api/session/verify`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
@@ -195,11 +209,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 throw new Error(errorData.error || 'Authentication failed');
             }
 
-            const data = await signInRes.json();
+            const data = await verifyRes.json();
+            console.log('[AuthContext] Login successful:', data.user);
             setIsAuthenticated(true);
             setUser(parseUserFromResponse(data));
         } catch (err: any) {
-            console.error('Login failed:', err);
+            console.error('[AuthContext] Login failed:', err);
             setError(err.message || 'Authentication failed');
             disconnect();
             setIsAuthenticated(false);
@@ -209,6 +224,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, [publicKey, signMessage, disconnect]);
 
     const logout = useCallback(async () => {
+        console.log('[AuthContext] Logout initiated');
         try {
             await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' });
         } finally {
@@ -248,7 +264,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Auto-trigger login when wallet connects but user is not yet authenticated
     useEffect(() => {
+        console.log('[AuthContext] Auto-trigger effect fired:', {
+            connected,
+            isAuthenticated,
+            isLoading,
+            authAttempted,
+            hasPublicKey: !!publicKey,
+            hasSignMessage: !!signMessage
+        });
+
         if (connected && !isAuthenticated && !isLoading && !authAttempted && publicKey && signMessage) {
+            console.log('[AuthContext] Auto-triggering login...');
             setAuthAttempted(true);
             login();
         }
