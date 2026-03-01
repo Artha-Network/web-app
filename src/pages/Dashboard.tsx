@@ -21,26 +21,13 @@ import { getConfiguredCluster } from '@/utils/solana';
 import type { DealCardProps } from "@/components/molecules/DealCard";
 import WalletConnectModal from "@/components/modals/WalletConnectModal";
 
-const mockNotifications = [
-  {
-    id: "n1",
-    icon: <Wallet className="text-blue-600 w-7 h-7" aria-hidden />,
-    title: "Wallet connected successfully",
-    date: new Date().toLocaleDateString(),
-  },
-  {
-    id: "n2",
-    icon: <Banknote className="text-green-600 w-7 h-7" aria-hidden />,
-    title: "Deal activity will appear here",
-    date: new Date().toLocaleDateString(),
-  },
-  {
-    id: "n3",
-    icon: <Gavel className="text-red-600 w-7 h-7" aria-hidden />,
-    title: "Stay tuned for dispute updates",
-    date: new Date().toLocaleDateString(),
-  },
-];
+const INSTRUCTION_NOTIFICATION_MAP: Record<string, { icon: JSX.Element; colorClass: string }> = {
+  FUND: { icon: <Banknote className="text-green-600 w-7 h-7" aria-hidden />, colorClass: "text-green-600" },
+  RELEASE: { icon: <ArrowRightCircle className="text-blue-600 w-7 h-7" aria-hidden />, colorClass: "text-blue-600" },
+  REFUND: { icon: <Repeat className="text-purple-600 w-7 h-7" aria-hidden />, colorClass: "text-purple-600" },
+  OPEN_DISPUTE: { icon: <Gavel className="text-red-600 w-7 h-7" aria-hidden />, colorClass: "text-red-600" },
+  RESOLVE: { icon: <CheckCircle2 className="text-amber-600 w-7 h-7" aria-hidden />, colorClass: "text-amber-600" },
+};
 
 const fallbackActivities = [
   {
@@ -133,13 +120,6 @@ const Dashboard: FC = () => {
         balanceSource: `Fetched from RPC: ${connection.rpcEndpoint}`,
       });
 
-      console.log('🔍 WALLET DEBUG:', {
-        rpcEndpoint: connection.rpcEndpoint,
-        walletAddress: publicKey.toBase58(),
-        solBalance: solBalance / LAMPORTS_PER_SOL,
-        cluster: cluster,
-        timestamp: new Date().toISOString(),
-      });
     } catch (error) {
       console.error('Error fetching wallet data:', error);
     } finally {
@@ -199,6 +179,31 @@ const Dashboard: FC = () => {
       };
     });
   }, [address, dealsData]);
+
+  const notifications = useMemo(() => {
+    if (!eventsData || !eventsData.length) {
+      return [{
+        id: "no-activity",
+        icon: <Wallet className="text-blue-600 w-7 h-7" aria-hidden />,
+        title: "No recent activity",
+        date: new Date().toLocaleDateString(),
+      }];
+    }
+    return eventsData.slice(0, 5).map((evt) => {
+      const instruction = (evt.instruction || "unknown").toUpperCase();
+      const mapping = INSTRUCTION_NOTIFICATION_MAP[instruction] || {
+        icon: <CheckCircle2 className="text-gray-600 w-7 h-7" aria-hidden />,
+        colorClass: "text-gray-600",
+      };
+      const txSig = evt.tx_sig ?? "";
+      return {
+        id: evt.id,
+        icon: mapping.icon,
+        title: `${instruction} confirmed (${txSig.slice(0, 6)}…)`,
+        date: evt.created_at ? new Date(evt.created_at).toLocaleString() : "",
+      };
+    });
+  }, [eventsData]);
 
   const recentActivities = useMemo(() => {
     if (!eventsData || !eventsData.length) return fallbackActivities;
@@ -408,12 +413,12 @@ const Dashboard: FC = () => {
           </div>
 
           <aside className="layout-content-container flex flex-col w-[360px] gap-4">
-            <ReputationScoreCard score={95} />
+            <ReputationScoreCard score={authUser?.reputationScore ?? 0} />
 
             <h2 className="text-gray-900 text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
               Notifications
             </h2>
-            <NotificationsList items={mockNotifications} />
+            <NotificationsList items={notifications} />
 
             <h2 className="text-gray-900 text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
               Recent Activity

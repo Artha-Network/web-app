@@ -104,21 +104,23 @@ export async function fund(dealId: string, actorWallet?: string): Promise<Action
 
 export async function release(dealId: string, actorWallet?: string): Promise<ActionResponse> {
   const deal = await fetchDealRow(dealId);
-  if (actorWallet && deal.buyer_wallet !== actorWallet) throw new Error("Only the buyer can release funds");
-  if (!deal.buyer_wallet) throw new Error("Deal missing buyer wallet");
+  // On-chain Release requires seller to sign (claim pattern after arbiter verdict)
+  if (actorWallet && deal.seller_wallet !== actorWallet) throw new Error("Only the seller can release funds");
+  if (!deal.seller_wallet) throw new Error("Deal missing seller wallet");
   return request<ActionResponse>("/actions/release", {
     dealId,
-    buyerWallet: deal.buyer_wallet,
+    sellerWallet: deal.seller_wallet,
   });
 }
 
 export async function refund(dealId: string, actorWallet?: string): Promise<ActionResponse> {
   const deal = await fetchDealRow(dealId);
-  if (actorWallet && deal.seller_wallet !== actorWallet) throw new Error("Only the seller can refund this deal");
-  if (!deal.seller_wallet) throw new Error("Deal missing seller wallet");
+  // On-chain Refund requires buyer to sign (claim pattern after arbiter verdict)
+  if (actorWallet && deal.buyer_wallet !== actorWallet) throw new Error("Only the buyer can claim a refund");
+  if (!deal.buyer_wallet) throw new Error("Deal missing buyer wallet");
   return request<ActionResponse>("/actions/refund", {
     dealId,
-    sellerWallet: deal.seller_wallet,
+    buyerWallet: deal.buyer_wallet,
   });
 }
 
@@ -126,8 +128,9 @@ export async function confirm(payload: ConfirmPayload) {
   let actorWallet = payload.actorWallet;
   if (!actorWallet) {
     const deal = await fetchDealRow(payload.dealId);
+    // FUND = buyer, RELEASE = seller (claim), REFUND = buyer (claim)
     actorWallet =
-      payload.action === "FUND" || payload.action === "RELEASE" ? deal.buyer_wallet ?? undefined : deal.seller_wallet ?? undefined;
+      payload.action === "RELEASE" ? deal.seller_wallet ?? undefined : deal.buyer_wallet ?? undefined;
   }
   if (!actorWallet) throw new Error("Unable to resolve actor wallet");
   return request("/actions/confirm", {

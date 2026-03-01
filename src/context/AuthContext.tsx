@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { API_BASE } from '@/lib/config';
 
@@ -9,7 +9,8 @@ interface User {
     displayName?: string;
     emailAddress?: string;
     profileComplete?: boolean;
-    isNewUser?: boolean; // true if user doesn't exist in database yet
+    isNewUser?: boolean;
+    reputationScore?: number;
 }
 
 interface AuthContextType {
@@ -35,12 +36,10 @@ export const useAuth = () => {
 
 const APP_NAME = 'Artha Network';
 
-// Helper: Generate nonce
 function generateNonce(): string {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 }
 
-// Helper: Create canonical message
 function createCanonicalMessage(nonce: string, timestamp: number): string {
     return JSON.stringify({
         app: APP_NAME,
@@ -50,6 +49,20 @@ function createCanonicalMessage(nonce: string, timestamp: number): string {
     });
 }
 
+function parseUserFromResponse(data: any): User {
+    const profileComplete = !!(data.user.displayName && data.user.emailAddress);
+    return {
+        wallet: data.user.walletAddress,
+        id: data.user.id,
+        name: data.user.displayName,
+        displayName: data.user.displayName,
+        emailAddress: data.user.emailAddress,
+        profileComplete: data.user.profileComplete ?? profileComplete,
+        isNewUser: data.user.isNewUser ?? !profileComplete,
+        reputationScore: parseFloat(data.user.reputationScore) || 0,
+    };
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { publicKey, signMessage, disconnect, connected } = useWallet();
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -57,11 +70,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [user, setUser] = useState<User | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [authAttempted, setAuthAttempted] = useState(false);
-    const heartbeatIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+    const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const lastActivityHeartbeatRef = useRef(0);
 
     const clearError = useCallback(() => setError(null), []);
 
-    // Heartbeat function to keep session alive
     const sendHeartbeat = useCallback(async () => {
         try {
             await fetch(`${API_BASE}/auth/keepalive`, {
@@ -70,32 +83,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
         } catch (err) {
             console.error('Heartbeat failed:', err);
-            // If heartbeat fails, session might be expired
             setIsAuthenticated(false);
             setUser(null);
         }
     }, []);
 
-    // Setup heartbeat interval when authenticated
+    // Heartbeat: interval every 5 min + throttled activity listener (max once per 60s)
     useEffect(() => {
         if (isAuthenticated) {
-            // Send heartbeat every 5 minutes (300 seconds)
             heartbeatIntervalRef.current = setInterval(sendHeartbeat, 5 * 60 * 1000);
-            // Also send heartbeat on user activity
+
             const handleActivity = () => {
+                const now = Date.now();
+                if (now - lastActivityHeartbeatRef.current < 60_000) return;
+                lastActivityHeartbeatRef.current = now;
                 sendHeartbeat();
             };
             window.addEventListener('mousedown', handleActivity);
             window.addEventListener('keydown', handleActivity);
-            window.addEventListener('scroll', handleActivity);
 
             return () => {
-                if (heartbeatIntervalRef.current) {
-                    clearInterval(heartbeatIntervalRef.current);
-                }
+                if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
                 window.removeEventListener('mousedown', handleActivity);
                 window.removeEventListener('keydown', handleActivity);
-                window.removeEventListener('scroll', handleActivity);
             };
         } else {
             if (heartbeatIntervalRef.current) {
@@ -115,21 +125,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const data = await res.json();
                 if (!isCancelled()) {
                     setIsAuthenticated(true);
-                    setUser({
-                        wallet: data.user.walletAddress,
-                        id: data.user.id,
-                        name: data.user.displayName,
-                        displayName: data.user.displayName,
-                        emailAddress: data.user.emailAddress,
-                        profileComplete: data.user.profileComplete,
-                        isNewUser: data.user.isNewUser ?? !data.user.profileComplete, // New if profile incomplete
-                    });
+                    setUser(parseUserFromResponse(data));
                 }
-            } else {
-                if (!isCancelled()) {
-                    setIsAuthenticated(false);
-                    setUser(null);
-                }
+            } else if (!isCancelled()) {
+                setIsAuthenticated(false);
+                setUser(null);
             }
         } catch (err) {
             if (!isCancelled()) {
@@ -145,58 +145,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         const controller = new AbortController();
         let cancelled = false;
-
         checkSession(controller, () => cancelled);
-
-        return () => {
-            cancelled = true;
-            controller.abort();
-        };
+        return () => { cancelled = true; controller.abort(); };
     }, [checkSession]);
 
-    // Reset auth attempt when wallet disconnects
+    // Clear state when wallet disconnects
     useEffect(() => {
         if (!connected) {
-            // Clear local state
             setAuthAttempted(false);
             setIsAuthenticated(false);
             setUser(null);
             setError(null);
 
-            // Clear backend session to prevent stale session access
-            fetch(`${API_BASE}/api/session/logout`, {
+            fetch(`${API_BASE}/auth/logout`, {
                 method: 'POST',
                 credentials: 'include'
-            }).catch(err => {
-                console.error('Failed to clear session on wallet disconnect:', err);
-                // Continue anyway - local state is already cleared
+            }).catch(() => {
+                // Best-effort — local state is already cleared
             });
         }
     }, [connected]);
 
-    const login = async () => {
+    const login = useCallback(async () => {
         if (!publicKey || !signMessage) return;
 
         setIsLoading(true);
         setError(null);
         try {
-            // 1. Create canonical message
             const nonce = generateNonce();
             const timestamp = Date.now();
             const message = createCanonicalMessage(nonce, timestamp);
 
-            // 2. Sign Message
             const messageBytes = new TextEncoder().encode(message);
             const signature = await signMessage(messageBytes);
 
-            // 3. Send to sign-in endpoint
             const signInRes = await fetch(`${API_BASE}/auth/sign-in`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
                 body: JSON.stringify({
                     pubkey: publicKey.toBase58(),
-                    message: message,
+                    message,
                     signature: Array.from(signature)
                 })
             });
@@ -208,17 +197,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             const data = await signInRes.json();
             setIsAuthenticated(true);
-            const profileComplete = !!(data.user.displayName && data.user.emailAddress);
-            setUser({
-                wallet: data.user.walletAddress,
-                id: data.user.id,
-                name: data.user.displayName,
-                displayName: data.user.displayName,
-                emailAddress: data.user.emailAddress,
-                profileComplete,
-                isNewUser: !profileComplete, // New if profile incomplete
-            });
-
+            setUser(parseUserFromResponse(data));
         } catch (err: any) {
             console.error('Login failed:', err);
             setError(err.message || 'Authentication failed');
@@ -227,9 +206,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [publicKey, signMessage, disconnect]);
 
-    const logout = async () => {
+    const logout = useCallback(async () => {
         try {
             await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' });
         } finally {
@@ -242,7 +221,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
             disconnect();
         }
-    };
+    }, [disconnect]);
 
     const refreshUser = useCallback(async () => {
         const controller = new AbortController();
@@ -253,15 +232,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (res.ok) {
                 const data = await res.json();
                 setIsAuthenticated(true);
-                setUser({
-                    wallet: data.user.walletAddress,
-                    id: data.user.id,
-                    name: data.user.displayName,
-                    displayName: data.user.displayName,
-                    emailAddress: data.user.emailAddress,
-                    profileComplete: data.user.profileComplete,
-                    isNewUser: data.user.isNewUser ?? !data.user.profileComplete, // New if profile incomplete
-                });
+                setUser(parseUserFromResponse(data));
             } else {
                 setIsAuthenticated(false);
                 setUser(null);
@@ -275,7 +246,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     }, []);
 
-    // Auto-trigger login if wallet connected but not authenticated and hasn't tried yet
+    // Auto-trigger login when wallet connects but user is not yet authenticated
     useEffect(() => {
         if (connected && !isAuthenticated && !isLoading && !authAttempted && publicKey && signMessage) {
             setAuthAttempted(true);

@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useEvent } from "@/hooks/useEvent";
-import { useDeal } from "@/hooks/useDeals";
+import { useDeal, useResolution } from "@/hooks/useDeals";
 import { useAction } from "@/hooks/useAction";
 
 /**
@@ -39,6 +39,7 @@ const ResolutionPage: FC = () => {
   const navigate = useNavigate();
 
   const { data: deal, isLoading: dealLoading, error: dealError } = useDeal(dealId);
+  const { data: resolution, isLoading: resolutionLoading } = useResolution(dealId);
   const { mutateAsync: executeResolution, isPending: isExecuting, error: executeError } = useAction('release');
 
   // Track page view on mount
@@ -128,19 +129,35 @@ const ResolutionPage: FC = () => {
     );
   }
 
-  // Mock AI resolution data (in real app, this would come from the deal object)
-  const mockResolution = {
-    decision: 'RELEASE',
-    confidence: 0.92,
-    reasoning: 'Based on the evidence provided, the seller has fulfilled their obligations. The delivered service matches the agreed-upon specifications, and the buyer has not provided sufficient evidence to contradict this. The timestamps show delivery was completed within the agreed timeframe.',
-    evidence_analyzed: [
-      'Delivery confirmation screenshots',
-      'Communication logs between parties',
-      'Service completion documentation',
-      'Timeline analysis'
-    ],
-    resolved_at: new Date().toISOString(),
-  };
+  const decision = resolution?.outcome ?? null;
+  const confidence = resolution?.confidence ?? 0;
+  const reasoning = resolution?.rationale_cid ?? "";
+  const resolvedAt = resolution?.issued_at ?? null;
+
+  // Show "awaiting resolution" when no resolution ticket exists yet
+  if (!resolutionLoading && !resolution && deal) {
+    return (
+      <div className="container mx-auto px-6 py-8">
+        <div className="max-w-4xl mx-auto">
+          <Button
+            variant="outline"
+            onClick={() => navigate(`/deal/${dealId}`)}
+            className="mb-4"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Deal
+          </Button>
+          <div className="text-center py-12">
+            <Clock className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Awaiting Resolution</h2>
+            <p className="text-muted-foreground">
+              The AI arbiter has not yet issued a resolution for this deal.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-6 py-8">
@@ -215,22 +232,22 @@ const ResolutionPage: FC = () => {
             {/* Decision */}
             <div className="text-center p-6 bg-muted rounded-lg">
               <div className="flex items-center justify-center gap-3 mb-3">
-                {mockResolution.decision === 'RELEASE' ? (
+                {decision === 'RELEASE' ? (
                   <CheckCircle2 className="w-8 h-8 text-green-600" />
                 ) : (
                   <DollarSign className="w-8 h-8 text-blue-600" />
                 )}
                 <div>
                   <h3 className="text-xl font-bold">
-                    {mockResolution.decision === 'RELEASE' ? 'Release Funds' : 'Refund Buyer'}
+                    {decision === 'RELEASE' ? 'Release Funds' : 'Refund Buyer'}
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    Confidence: {(mockResolution.confidence * 100).toFixed(1)}%
+                    Confidence: {(confidence * 100).toFixed(1)}%
                   </p>
                 </div>
               </div>
 
-              {mockResolution.decision === 'RELEASE' ? (
+              {decision === 'RELEASE' ? (
                 <p className="text-sm text-green-700 dark:text-green-300">
                   The seller has fulfilled their obligations. Funds should be released.
                 </p>
@@ -249,24 +266,8 @@ const ResolutionPage: FC = () => {
               </h4>
               <div className="bg-muted p-4 rounded-lg">
                 <p className="text-sm leading-relaxed">
-                  {mockResolution.reasoning}
+                  {reasoning}
                 </p>
-              </div>
-            </div>
-
-            {/* Evidence Analyzed */}
-            <div>
-              <h4 className="font-medium mb-3 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" />
-                Evidence Analyzed
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {mockResolution.evidence_analyzed.map((evidence, index) => (
-                  <div key={index} className="flex items-center gap-2 p-2 bg-muted rounded">
-                    <CheckCircle2 className="w-4 h-4 text-green-600" />
-                    <span className="text-sm">{evidence}</span>
-                  </div>
-                ))}
               </div>
             </div>
 
@@ -274,7 +275,7 @@ const ResolutionPage: FC = () => {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Clock className="w-4 h-4" />
               <span>
-                Resolution completed on {new Date(mockResolution.resolved_at).toLocaleString()}
+                Resolution completed on {new Date(resolvedAt || new Date().toISOString()).toLocaleString()}
               </span>
             </div>
           </CardContent>
@@ -299,7 +300,7 @@ const ResolutionPage: FC = () => {
               </Alert>
 
               <div className="flex justify-center">
-                {mockResolution.decision === 'RELEASE' ? (
+                {decision === 'RELEASE' ? (
                   <Button
                     onClick={() => handleExecuteResolution('release')}
                     disabled={isExecuting}

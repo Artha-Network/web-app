@@ -26,7 +26,6 @@ const Step2: FC = () => {
             setLoading(true);
             setError(null);
             try {
-                console.log("AI Request sent, waiting for response...");
                 const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/ai/generate-contract`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -36,12 +35,12 @@ const Step2: FC = () => {
                         counterparty: data.counterpartyAddress,
                         amount: data.amount.toString(),
                         description: data.description,
-                        deliveryDeadline: data.deliveryDeadline,
+                        initiatorDeadline: data.initiatorDeadline,
+                        completionDeadline: data.completionDeadline,
+                        deliveryDeadline: data.completionDeadline || data.deliveryDeadline,
                         disputeDeadline: data.disputeWindowDays?.toString(),
                     }),
                 });
-
-                console.log("AI Response status:", response.status);
 
                 if (!response.ok) {
                     const errorText = await response.text();
@@ -50,7 +49,6 @@ const Step2: FC = () => {
                 }
 
                 const result = await response.json();
-                console.log("AI Response data:", result);
 
                 if (result.source === "fallback") {
                     // Using the error state to show a persistent warning, or we could use a separate warning state.
@@ -151,7 +149,13 @@ const Step2: FC = () => {
                             )}
 
                             <div className="flex justify-between pt-4">
-                                <Button variant="outline" onClick={() => back(2)}>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                        updateData({ contract: "", questions: [] });
+                                        back(2);
+                                    }}
+                                >
                                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Details
                                 </Button>
                                 <Button onClick={handleContinue} className="bg-green-600 hover:bg-green-700">
