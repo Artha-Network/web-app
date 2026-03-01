@@ -19,6 +19,7 @@ export interface DealRow {
 export interface DealWithEvents extends DealRow {
   description?: string;
   transaction_hash?: string;
+  metadata?: Record<string, unknown> | null;
   ai_resolution?: {
     decision: string;
     confidence: number;
@@ -85,6 +86,7 @@ async function fetchDealById(dealId: string): Promise<DealWithEvents> {
     description: data.description,
     transaction_hash: data.transaction_hash || data.transactionHash,
     ai_resolution: data.ai_resolution || data.aiResolution,
+    metadata: data.metadata ?? null,
   };
 }
 
@@ -122,11 +124,18 @@ export function useMyDeals(options?: { page?: number; pageSize?: number }) {
   });
 }
 
+const ACTIVE_STATUSES = new Set(["INIT", "FUNDED", "DISPUTED"]);
+const POLL_INTERVAL_MS = 15_000;
+
 export function useDeal(dealId?: string) {
   return useQuery({
     queryKey: ["deal", dealId],
     queryFn: () => fetchDealById(dealId!),
     enabled: Boolean(dealId),
+    refetchInterval: (query) => {
+      const status = (query.state.data as DealRow | undefined)?.status;
+      return status && ACTIVE_STATUSES.has(status) ? POLL_INTERVAL_MS : false;
+    },
   });
 }
 

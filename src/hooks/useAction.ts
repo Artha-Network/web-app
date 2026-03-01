@@ -5,7 +5,7 @@ import { toast } from "@/components/ui/sonner";
 import { useWalletTransactions } from "./useWalletTransactions";
 import actionsService from "@/services/actions";
 
-type ActionKey = "initiate" | "fund" | "release" | "refund";
+type ActionKey = "initiate" | "fund" | "release" | "refund" | "open-dispute";
 
 interface InitiateVariables {
   counterparty: string;
@@ -18,6 +18,7 @@ interface InitiateVariables {
   buyerEmail?: string;
   sellerEmail?: string;
   role?: "buyer" | "seller";
+  metadata?: Record<string, unknown>;
 }
 
 interface ActionVariablesMap {
@@ -25,6 +26,7 @@ interface ActionVariablesMap {
   fund: { dealId: string };
   release: { dealId: string };
   refund: { dealId: string };
+  "open-dispute": { dealId: string };
 }
 
 type MutationVariables<T extends ActionKey> = ActionVariablesMap[T];
@@ -42,7 +44,7 @@ export function useAction<T extends ActionKey>(action: T) {
       let response: Awaited<ReturnType<typeof actionsService.initiate>>;
       let dealId: string;
       let actorWallet = viewerWallet;
-      let actionVerb: "INITIATE" | "FUND" | "RELEASE" | "REFUND";
+      let actionVerb: "INITIATE" | "FUND" | "RELEASE" | "REFUND" | "OPEN_DISPUTE";
 
       switch (action) {
         case "initiate": {
@@ -66,6 +68,7 @@ export function useAction<T extends ActionKey>(action: T) {
             buyerEmail: payload.buyerEmail,
             sellerEmail: payload.sellerEmail,
             payer: viewerWallet,
+            metadata: payload.metadata,
           });
           actionVerb = "INITIATE";
           dealId = response.dealId;
@@ -92,6 +95,14 @@ export function useAction<T extends ActionKey>(action: T) {
           const { dealId: id } = variables as { dealId: string };
           response = await actionsService.refund(id, viewerWallet);
           actionVerb = "REFUND";
+          dealId = response.dealId;
+          actorWallet = viewerWallet;
+          break;
+        }
+        case "open-dispute": {
+          const { dealId: id } = variables as { dealId: string };
+          response = await actionsService.openDispute(id, viewerWallet);
+          actionVerb = "OPEN_DISPUTE";
           dealId = response.dealId;
           actorWallet = viewerWallet;
           break;
