@@ -50,20 +50,31 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ open, on
     let cancelled = false;
 
     async function handleConnectionSuccess() {
+      console.log('[WalletConnectModal] Effect fired:', {
+        open,
+        connected,
+        hasPublicKey: !!publicKey,
+        isAuthenticated,
+        isLoading,
+        authError
+      });
+
       if (!(open && connected && publicKey)) return;
 
         const address = publicKey.toBase58();
-        console.log("Wallet connected:", address);
+        console.log("[WalletConnectModal] Wallet connected:", address);
 
       // Wait for authentication to complete (message signing required)
       // AuthContext auto-triggers login when wallet connects, so we just wait for it
       if (isLoading) {
+        console.log('[WalletConnectModal] Still authenticating, waiting...');
         // Still loading/authenticating, wait...
         return;
       }
 
       // Only navigate after authentication is complete
       if (isAuthenticated && !cancelled) {
+        console.log('[WalletConnectModal] Authentication complete, upserting wallet and navigating...');
         const network = getConfiguredCluster();
         try {
           const ACTIONS_BASE_URL = import.meta.env.VITE_ACTIONS_SERVER_URL || 'http://localhost:4000';
@@ -89,6 +100,7 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ open, on
         }
 
         if (!cancelled) {
+        console.log('[WalletConnectModal] Closing modal and navigating to dashboard');
         onOpenChange(false);
         navigate("/dashboard", { replace: true });
         }

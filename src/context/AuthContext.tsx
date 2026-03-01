@@ -113,13 +113,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     }, [connected]);
 
-    const login = async () => {
+    const login = useCallback(async () => {
         if (!publicKey || !signMessage) return;
 
+        console.log('[AuthContext] Login started for wallet:', publicKey.toBase58());
         setIsLoading(true);
         setError(null);
         try {
             // 1. Get Challenge
+            console.log('[AuthContext] Requesting challenge...');
             const challengeRes = await fetch(`${API_BASE}/api/session/challenge`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -128,12 +130,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             if (!challengeRes.ok) throw new Error('Failed to get challenge');
             const { challenge } = await challengeRes.json();
+            console.log('[AuthContext] Challenge received');
 
             // 2. Sign Message
+            console.log('[AuthContext] Requesting signature...');
             const message = new TextEncoder().encode(challenge);
             const signature = await signMessage(message);
+            console.log('[AuthContext] Signature received');
 
             // 3. Verify Signature
+            console.log('[AuthContext] Verifying signature...');
             const verifyRes = await fetch(`${API_BASE}/api/session/verify`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -147,6 +153,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (!verifyRes.ok) throw new Error('Verification failed');
 
             const data = await verifyRes.json();
+            console.log('[AuthContext] Login successful:', data.user);
             setIsAuthenticated(true);
             // User object may include: wallet, id, name, displayName, emailAddress, profileComplete, isNewUser
             setUser({
@@ -160,16 +167,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
 
         } catch (err: any) {
-            console.error('Login failed:', err);
+            console.error('[AuthContext] Login failed:', err);
             setError(err.message || 'Authentication failed');
             disconnect();
             setIsAuthenticated(false);
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [publicKey, signMessage, disconnect]);
 
-    const logout = async () => {
+    const logout = useCallback(async () => {
+        console.log('[AuthContext] Logout initiated');
         try {
             await fetch(`${API_BASE}/api/session/logout`, { method: 'POST', credentials: 'include' });
         } finally {
@@ -178,7 +186,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setError(null);
             disconnect();
         }
-    };
+    }, [disconnect]);
 
     const refreshUser = useCallback(async () => {
         const controller = new AbortController();
@@ -208,7 +216,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Auto-trigger login if wallet connected but not authenticated and hasn't tried yet
     useEffect(() => {
+        console.log('[AuthContext] Auto-trigger effect fired:', {
+            connected,
+            isAuthenticated,
+            isLoading,
+            authAttempted,
+            hasPublicKey: !!publicKey,
+            hasSignMessage: !!signMessage
+        });
+
         if (connected && !isAuthenticated && !isLoading && !authAttempted && publicKey && signMessage) {
+            console.log('[AuthContext] Auto-triggering login...');
             setAuthAttempted(true);
             login();
         }
