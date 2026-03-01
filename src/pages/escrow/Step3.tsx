@@ -11,7 +11,7 @@ import StepIndicator from "@/components/molecules/StepIndicator";
 import { ArrowRight, ArrowLeft, Shield, Clock, DollarSign, CheckCircle2, Info, AlertTriangle, Loader } from "lucide-react";
 import { useEscrowFlow } from "@/hooks/useEscrowFlow";
 import { useEvent } from "@/hooks/useEvent";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { useAction } from "@/hooks/useAction";
 
 /**
@@ -27,6 +27,7 @@ import { useAction } from "@/hooks/useAction";
  */
 
 const Step2: FC = () => {
+  const { connection } = useConnection();
   const { publicKey } = useWallet();
   const { data, back, next } = useEscrowFlow();
   const { trackEvent } = useEvent();
@@ -71,6 +72,17 @@ const Step2: FC = () => {
     setIsProcessing(true);
 
     try {
+      // Pre-flight: check SOL balance
+      const solBalance = await connection.getBalance(publicKey);
+      const MIN_SOL_LAMPORTS = 5_000_000; // 0.005 SOL
+      if (solBalance < MIN_SOL_LAMPORTS) {
+        throw new Error(
+          `Insufficient SOL balance (${(solBalance / 1e9).toFixed(4)} SOL). ` +
+          `Your wallet needs at least 0.005 SOL for transaction fees. ` +
+          `Airdrop devnet SOL at faucet.solana.com`
+        );
+      }
+
       // Track funding attempt
       trackEvent('fund_attempt', {
         amount: data.amount,

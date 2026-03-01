@@ -23,6 +23,13 @@ import { getConfiguredCluster } from '@/utils/solana';
 import type { DealCardProps } from "@/components/molecules/DealCard";
 import WalletConnectModal from "@/components/modals/WalletConnectModal";
 
+const INSTRUCTION_NOTIFICATION_MAP: Record<string, { icon: JSX.Element; colorClass: string }> = {
+  FUND: { icon: <Banknote className="text-green-600 w-7 h-7" aria-hidden />, colorClass: "text-green-600" },
+  RELEASE: { icon: <ArrowRightCircle className="text-blue-600 w-7 h-7" aria-hidden />, colorClass: "text-blue-600" },
+  REFUND: { icon: <Repeat className="text-purple-600 w-7 h-7" aria-hidden />, colorClass: "text-purple-600" },
+  OPEN_DISPUTE: { icon: <Gavel className="text-red-600 w-7 h-7" aria-hidden />, colorClass: "text-red-600" },
+  RESOLVE: { icon: <CheckCircle2 className="text-amber-600 w-7 h-7" aria-hidden />, colorClass: "text-amber-600" },
+};
 const fallbackActivities = [
   {
     id: "placeholder-fund",
@@ -416,7 +423,7 @@ const Dashboard: FC = () => {
           </div>
 
           <aside className="layout-content-container flex flex-col w-[360px] gap-4">
-            <ReputationScoreCard score={Number(authUser?.reputationScore ?? 0)} />
+            <ReputationScoreCard score={authUser?.reputationScore ?? 0} />
 
             <h2 className="text-gray-900 text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
               Notifications

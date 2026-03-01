@@ -36,66 +36,63 @@ function detectExtension(provider: string): boolean {
 }
 
 export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ open, onOpenChange }) => {
-  const { publicKey, connect, select, connected, wallets: providerWallets } = useWallet();
+  const { publicKey, select, connected, wallets: providerWallets } = useWallet();
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading, error: authError } = useAuth();
+  const { isAuthenticated, isLoading, error: authError, user } = useAuth();
   const [connecting, setConnecting] = useState(false);
 
   // Use provider-managed wallet adapters only — never create separate adapter instances
   const wallets = providerWallets ?? [];
 
-    async function handleConnectionSuccess() {
-      console.log('[WalletConnectModal] Effect fired:', {
-        open,
-        connected,
-        hasPublicKey: !!publicKey,
-        isAuthenticated,
-        isLoading,
-        authError
+  const findWallet = useCallback(
+    (provider: string) => wallets.find(w => w.adapter.name.toLowerCase().includes(provider)),
+    [wallets]
+  );
+
+  // Extension detection state (checked once on open + after a brief delay for late-loading extensions)
+  const [extensionState, setExtensionState] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (!open) return;
+    const check = () => {
+      setExtensionState({
+        phantom: detectExtension("phantom"),
+        solflare: detectExtension("solflare"),
       });
+    };
+    check();
+    // Extensions may inject after DOMContentLoaded — recheck once after 1s
+    const timer = setTimeout(check, 1000);
+    return () => clearTimeout(timer);
+  }, [open]);
 
-      if (!(open && connected && publicKey)) return;
+  // After authentication succeeds, upsert wallet and navigate to dashboard
+  useEffect(() => {
+    if (!(open && connected && publicKey && isAuthenticated && !isLoading)) return;
+    let cancelled = false;
 
-        const address = publicKey.toBase58();
-        console.log("[WalletConnectModal] Wallet connected:", address);
-
-      // Wait for authentication to complete (message signing required)
-      // AuthContext auto-triggers login when wallet connects, so we just wait for it
-      if (isLoading) {
-        console.log('[WalletConnectModal] Still authenticating, waiting...');
-        // Still loading/authenticating, wait...
-        return;
-      }
-
-      // Only navigate after authentication is complete
-      if (isAuthenticated && !cancelled) {
-        console.log('[WalletConnectModal] Authentication complete, upserting wallet and navigating...');
-        const network = getConfiguredCluster();
-        try {
-          const ACTIONS_BASE_URL = import.meta.env.VITE_ACTIONS_SERVER_URL || 'http://localhost:4000';
-          const response = await fetch(`${ACTIONS_BASE_URL}/auth/upsert-wallet`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ walletAddress: address, network }),
-          });
-
-          if (!response.ok) {
-            const message = await response.text();
-            console.error("Wallet upsert failed:", message);
-          } else {
-            const payload = (await response.json()) as WalletIdentityResponse;
-            if (!cancelled) {
-            persistUserIdentity(payload);
-            }
+    (async () => {
+      const address = publicKey.toBase58();
+      const network = getConfiguredCluster();
+      try {
+        const baseUrl = import.meta.env.VITE_ACTIONS_SERVER_URL || "http://localhost:4000";
+        const res = await fetch(`${baseUrl}/auth/upsert-wallet`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ walletAddress: address, network }),
+        });
+        if (res.ok) {
+          const payload = (await res.json()) as WalletIdentityResponse;
+          if (!cancelled) {
+            try { localStorage.setItem(USER_ID_STORAGE_KEY, payload.userId); } catch { /* noop */ }
           }
         }
-
-        if (!cancelled) {
-        console.log('[WalletConnectModal] Closing modal and navigating to dashboard');
+      } catch (err) {
+        if (!cancelled) console.error("Wallet upsert failed", err);
+      }
+      if (!cancelled) {
         onOpenChange(false);
-        navigate("/dashboard", { replace: true });
+        navigate(user?.isNewUser ? "/profile" : "/dashboard", { replace: true });
       }
     })();
 
@@ -125,11 +122,10 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ open, on
         return;
       }
 
-      // Select wallet in the provider context, then connect
+      // Select wallet in the provider context, then connect via adapter directly
+      // (avoids WalletNotSelectedError from React context update timing)
       select(adapter.name);
-      // Brief delay for the provider context to update after select()
-      await new Promise(r => setTimeout(r, 200));
-      await connect();
+      await adapter.connect();
     } catch (error: any) {
       if (error?.message?.includes("User rejected") || error?.message?.includes("User cancelled")) {
         toast.info("Connection cancelled.");
@@ -141,7 +137,7 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ open, on
     } finally {
       setConnecting(false);
     }
-  }, [connect, select, findWallet]);
+  }, [select, findWallet]);
 
   if (!open) return null;
 
@@ -162,7 +158,7 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ open, on
         <div className="mb-6 text-center">
           <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Connect Wallet</h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-            {isLoading
+            {isLoading && connected
               ? "Please sign the message in your wallet to verify ownership..."
               : connected && !isAuthenticated
               ? "Authentication required. Please sign the message."
@@ -177,7 +173,7 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ open, on
           <button
             className={btnBase}
             onClick={() => void handleConnect("phantom")}
-            disabled={connecting || !findWallet("phantom")}
+            disabled={connecting || isLoading || !findWallet("phantom")}
           >
             Connect Phantom
             {!phantomDetected && (
@@ -188,7 +184,7 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ open, on
           <button
             className={btnBase}
             onClick={() => void handleConnect("solflare")}
-            disabled={connecting || !findWallet("solflare")}
+            disabled={connecting || isLoading || !findWallet("solflare")}
           >
             Connect Solflare
             {!solflareDetected && (
