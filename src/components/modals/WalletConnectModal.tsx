@@ -1,24 +1,19 @@
-import React from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useNavigate } from "react-router-dom";
-import { getConfiguredCluster, SolanaCluster } from "@/utils/solana";
-import { useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
 import { WalletReadyState } from "@solana/wallet-adapter-base";
+import { toast } from "@/components/ui/sonner";
+import { getConfiguredCluster, SolanaCluster } from "@/utils/solana";
 import { useAuth } from "@/context/AuthContext";
 
-/**
- * WalletConnectModal
- * Minimal, reusable wallet connection modal that integrates with
- * @solana/wallet-adapter-react. Opens over a blurred, dimmed backdrop.
- */
 export interface WalletConnectModalProps {
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }
 
 const btnBase =
-  "w-full flex items-center justify-center gap-3 bg-white/80 dark:bg-white/10 hover:bg-white/90 dark:hover:bg-white/20 border border-gray-300 dark:border-gray-700 p-3 rounded-xl font-medium transition-all duration-300 transform hover:-translate-y-0.5 text-gray-800 dark:text-gray-100";
+  "w-full flex items-center justify-center gap-3 bg-white/80 dark:bg-white/10 hover:bg-white/90 dark:hover:bg-white/20 border border-gray-300 dark:border-gray-700 p-3 rounded-xl font-medium transition-all duration-300 transform hover:-translate-y-0.5 text-gray-800 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none";
 
 interface WalletIdentityResponse {
   userId: string;
@@ -29,25 +24,25 @@ interface WalletIdentityResponse {
 
 const USER_ID_STORAGE_KEY = "artha:user-id";
 
-const persistUserIdentity = (payload: WalletIdentityResponse) => {
-  try {
-    localStorage.setItem(USER_ID_STORAGE_KEY, payload.userId);
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.warn("Unable to persist user identity", error);
-  }
+const INSTALL_URLS: Record<string, string> = {
+  phantom: "https://phantom.app/",
+  solflare: "https://solflare.com/",
 };
 
+function detectExtension(provider: string): boolean {
+  if (provider === "phantom") return !!(window as any).solana?.isPhantom;
+  if (provider === "solflare") return !!(window as any).solflare;
+  return false;
+}
+
 export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ open, onOpenChange }) => {
-  const { publicKey, connect, select, connected } = useWallet();
-  const { wallets } = useSolanaWallet();
+  const { publicKey, connect, select, connected, wallets: providerWallets } = useWallet();
   const navigate = useNavigate();
   const { isAuthenticated, isLoading, error: authError } = useAuth();
+  const [connecting, setConnecting] = useState(false);
 
-  // Handle successful connection - wait for authentication before navigating
-  // AuthContext will automatically trigger login (message signing) when wallet connects
-  React.useEffect(() => {
-    let cancelled = false;
+  // Use provider-managed wallet adapters only — never create separate adapter instances
+  const wallets = providerWallets ?? [];
 
     async function handleConnectionSuccess() {
       console.log('[WalletConnectModal] Effect fired:', {
@@ -95,57 +90,63 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ open, on
             persistUserIdentity(payload);
             }
           }
-        } catch (error) {
-          if (!cancelled) console.error("Wallet upsert request failed", error);
         }
 
         if (!cancelled) {
         console.log('[WalletConnectModal] Closing modal and navigating to dashboard');
         onOpenChange(false);
         navigate("/dashboard", { replace: true });
-        }
       }
-    }
+    })();
 
-    handleConnectionSuccess();
+    return () => { cancelled = true; };
+  }, [open, connected, publicKey, isAuthenticated, isLoading, navigate, onOpenChange]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [open, connected, publicKey, navigate, onOpenChange, isAuthenticated, isLoading]);
-
-  const handleConnect = async (provider: "phantom" | "solflare" | "other") => {
+  const handleConnect = useCallback(async (provider: "phantom" | "solflare") => {
+    setConnecting(true);
     try {
-      // For "other", let the user choose from available wallets
-      if (provider === "other") {
-        await connect();
-      } else {
-        // Try to select specific wallet
-        const targetWallet = wallets.find(wallet =>
-          wallet.adapter.name.toLowerCase().includes(provider)
-        );
-
-        const ready = targetWallet?.adapter.readyState;
-        const isInstalled = ready === WalletReadyState.Installed;
-
-        if (!targetWallet || !isInstalled) {
-          console.warn(`${provider} not installed or not ready`, { ready });
-          alert(`Please install or enable the ${provider} wallet in your browser, then try again.`);
-          return;
-        }
-
-        select(targetWallet.adapter.name);
-          await connect();
+      const targetWallet = findWallet(provider);
+      if (!targetWallet) {
+        toast.error(`${provider} wallet adapter not available. Please refresh the page.`);
+        return;
       }
-      // logic moved to useEffect
-    } catch (error) {
-      console.error("Wallet connect failed", error);
-      // Show user-friendly error message
-      alert("Failed to connect wallet. Please make sure your wallet is installed and try again.");
+
+      const adapter = targetWallet.adapter;
+      const hasExtension = detectExtension(provider);
+
+      // Check if extension is installed (adapter detection or direct window check)
+      if (adapter.readyState === WalletReadyState.NotDetected && !hasExtension) {
+        toast.error(`Please install the ${provider} wallet extension.`, {
+          action: {
+            label: "Install",
+            onClick: () => window.open(INSTALL_URLS[provider], "_blank"),
+          },
+        });
+        return;
+      }
+
+      // Select wallet in the provider context, then connect
+      select(adapter.name);
+      // Brief delay for the provider context to update after select()
+      await new Promise(r => setTimeout(r, 200));
+      await connect();
+    } catch (error: any) {
+      if (error?.message?.includes("User rejected") || error?.message?.includes("User cancelled")) {
+        toast.info("Connection cancelled.");
+      } else if (error?.name === "WalletNotReadyError") {
+        toast.error(`${provider} is not ready. Make sure the extension is installed and unlocked.`);
+      } else {
+        toast.error(error?.message || "Failed to connect wallet.");
+      }
+    } finally {
+      setConnecting(false);
     }
-  };
+  }, [connect, select, findWallet]);
 
   if (!open) return null;
+
+  const phantomDetected = extensionState.phantom;
+  const solflareDetected = extensionState.solflare;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -157,6 +158,7 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ open, on
         >
           <X className="w-5 h-5" />
         </button>
+
         <div className="mb-6 text-center">
           <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Connect Wallet</h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
@@ -172,13 +174,31 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ open, on
         </div>
 
         <div className="space-y-3">
-          <button className={btnBase} onClick={() => void handleConnect("phantom")}>Connect Phantom</button>
-          <button className={btnBase} onClick={() => void handleConnect("solflare")}>Connect Solflare</button>
-          <button className={btnBase} onClick={() => void handleConnect("other")}>Other Wallets</button>
+          <button
+            className={btnBase}
+            onClick={() => void handleConnect("phantom")}
+            disabled={connecting || !findWallet("phantom")}
+          >
+            Connect Phantom
+            {!phantomDetected && (
+              <span className="text-xs text-orange-600 ml-2">(Not detected)</span>
+            )}
+          </button>
+
+          <button
+            className={btnBase}
+            onClick={() => void handleConnect("solflare")}
+            disabled={connecting || !findWallet("solflare")}
+          >
+            Connect Solflare
+            {!solflareDetected && (
+              <span className="text-xs text-orange-600 ml-2">(Not detected)</span>
+            )}
+          </button>
         </div>
 
         <p className="text-xs text-gray-600 dark:text-gray-400 mt-6 text-center">
-          By connecting a wallet, you agree to Artha Network’s Terms of Service and Privacy Policy.
+          By connecting a wallet, you agree to Artha Network's Terms of Service and Privacy Policy.
         </p>
       </div>
     </div>

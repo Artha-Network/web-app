@@ -130,16 +130,6 @@ export function useEvent() {
           }
         });
 
-        // Optional: Also log to console in development
-        if (process.env.NODE_ENV === 'development') {
-          console.log('📊 Event tracked:', {
-            event,
-            user_id: publicKey?.toString() || 'anonymous',
-            deal_id: dealId,
-            case_id: caseId,
-            extras,
-          });
-        }
       } catch (error) {
         // Silent fail for analytics - don't break user experience
         if (process.env.NODE_ENV === 'development') {

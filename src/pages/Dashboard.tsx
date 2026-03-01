@@ -2,7 +2,7 @@ import { FC, useMemo, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { Banknote, Gavel, CheckCircle2, ArrowRightCircle, Repeat, RefreshCw, Wallet, Globe, DollarSign } from "lucide-react";
+import { Banknote, Gavel, CheckCircle2, ArrowRightCircle, Repeat, RefreshCw, Wallet, Globe, DollarSign, AlertCircle } from "lucide-react";
 import HeaderBar from "@/components/organisms/HeaderBar";
 import DashboardGreeting from "@/components/organisms/DashboardGreeting";
 import DealActions from "@/components/molecules/DealActions";
@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/context/AuthContext"; // Use unified AuthContext
+import { useModalContext } from "@/context/ModalContext";
 import { useMyDeals, useRecentDealEvents, statusToBadge, useDeleteDeal } from "@/hooks/useDeals";
 import { useEvent } from "@/hooks/useEvent";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -68,8 +69,14 @@ const Dashboard: FC = () => {
   const [showConnectModal, setShowConnectModal] = useState(false);
 
   const address = publicKey?.toBase58();
-  // Use display name from profile if available, otherwise use wallet address
-  const userName = (authUser?.name || authUser?.displayName) || (address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "User");
+  // Use display name from profile (set during profile creation), fallback to name, then "User"
+  const userName = authUser?.displayName || authUser?.name || "User";
+
+  // Check if wallet connection is required but missing
+  const needsWalletConnection = isAuthenticated && !connected && !publicKey;
+  
+  // Get modal context for opening wallet modal
+  const { openWalletModal } = useModalContext();
 
   // Real notifications
   const { data: notificationsData } = useNotifications();
@@ -110,13 +117,6 @@ const Dashboard: FC = () => {
         balanceSource: `Fetched from RPC: ${connection.rpcEndpoint}`,
       });
 
-      console.log('🔍 WALLET DEBUG:', {
-        rpcEndpoint: connection.rpcEndpoint,
-        walletAddress: publicKey.toBase58(),
-        solBalance: solBalance / LAMPORTS_PER_SOL,
-        cluster: cluster,
-        timestamp: new Date().toISOString(),
-      });
     } catch (error) {
       console.error('Error fetching wallet data:', error);
     } finally {
@@ -177,6 +177,31 @@ const Dashboard: FC = () => {
     });
   }, [address, dealsData]);
 
+  const notifications = useMemo(() => {
+    if (!eventsData || !eventsData.length) {
+      return [{
+        id: "no-activity",
+        icon: <Wallet className="text-blue-600 w-7 h-7" aria-hidden />,
+        title: "No recent activity",
+        date: new Date().toLocaleDateString(),
+      }];
+    }
+    return eventsData.slice(0, 5).map((evt) => {
+      const instruction = (evt.instruction || "unknown").toUpperCase();
+      const mapping = INSTRUCTION_NOTIFICATION_MAP[instruction] || {
+        icon: <CheckCircle2 className="text-gray-600 w-7 h-7" aria-hidden />,
+        colorClass: "text-gray-600",
+      };
+      const txSig = evt.tx_sig ?? "";
+      return {
+        id: evt.id,
+        icon: mapping.icon,
+        title: `${instruction} confirmed (${txSig.slice(0, 6)}…)`,
+        date: evt.created_at ? new Date(evt.created_at).toLocaleString() : "",
+      };
+    });
+  }, [eventsData]);
+
   const recentActivities = useMemo(() => {
     if (!eventsData || !eventsData.length) return fallbackActivities;
     return eventsData.map((evt) => {
@@ -218,31 +243,58 @@ const Dashboard: FC = () => {
                     Wallet Status
                   </CardTitle>
                   <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleRefresh}
-                      disabled={isBalanceLoading}
-                    >
-                      <RefreshCw className={`w-4 h-4 mr-2 ${isBalanceLoading ? 'animate-spin' : ''}`} />
-                      Refresh
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleDisconnect}
-                    >
-                      Disconnect
-                    </Button>
+                    {connected && publicKey ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleRefresh}
+                          disabled={isBalanceLoading}
+                        >
+                          <RefreshCw className={`w-4 h-4 mr-2 ${isBalanceLoading ? 'animate-spin' : ''}`} />
+                          Refresh
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleDisconnect}
+                        >
+                          Disconnect
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={openWalletModal}
+                      >
+                        <Wallet className="w-4 h-4 mr-2" />
+                        Connect Wallet
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Wallet</label>
-                    <p className="font-semibold">{wallet?.adapter?.name || 'Unknown'}</p>
+                {!connected || !publicKey ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <AlertCircle className="w-12 h-12 text-orange-500 mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">Wallet Not Connected</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Please connect your wallet to view your balance and manage deals.
+                    </p>
+                    <Button onClick={openWalletModal} size="lg">
+                      <Wallet className="w-4 h-4 mr-2" />
+                      Connect Wallet
+                    </Button>
                   </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Wallet</label>
+                        <p className="font-semibold">{wallet?.adapter?.name || 'Unknown'}</p>
+                      </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Network</label>
                     <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
@@ -339,6 +391,8 @@ const Dashboard: FC = () => {
                       </div>
                     </div>
                   </div>
+                )}
+                  </>
                 )}
               </CardContent>
             </Card>

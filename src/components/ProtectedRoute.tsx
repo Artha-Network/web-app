@@ -65,7 +65,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   }
 
   // If authenticated, allow access regardless of wallet connection status
-  // The wallet adapter will auto-connect if there's a valid session (handled in SolanaWalletProvider)
+  // Wallet connection is manual - user must explicitly click "Connect Wallet" and choose a wallet
   // Components that need wallet will handle the disconnected state gracefully
   return children;
 };

@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useEvent } from "@/hooks/useEvent";
-import { useDeal } from "@/hooks/useDeals";
+import { useDeal, useResolution } from "@/hooks/useDeals";
 import { useAction } from "@/hooks/useAction";
 import { useResolution } from "@/hooks/useResolution";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";

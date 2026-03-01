@@ -121,6 +121,8 @@ export function useMyDeals(options?: { page?: number; pageSize?: number }) {
     queryKey: ["my-deals", wallet, page, pageSize],
     queryFn: () => fetchDealsForWallet(wallet!, page, pageSize),
     enabled: Boolean(wallet),
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -146,6 +148,8 @@ export function useRecentDealEvents(limit = 10) {
     queryKey: ["deal-events", wallet, limit],
     queryFn: () => fetchRecentEvents(wallet!, limit),
     enabled: Boolean(wallet),
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
   });
 }
 
