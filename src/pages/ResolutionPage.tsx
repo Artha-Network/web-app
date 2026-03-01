@@ -19,9 +19,8 @@ import {
 } from "lucide-react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useEvent } from "@/hooks/useEvent";
-import { useDeal } from "@/hooks/useDeals";
+import { useDeal, useResolution } from "@/hooks/useDeals";
 import { useAction } from "@/hooks/useAction";
-import { useResolution } from "@/hooks/useResolution";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const ResolutionPage: FC = () => {
@@ -42,6 +41,7 @@ const ResolutionPage: FC = () => {
 
   const isExecuting = releaseAction.isPending || refundAction.isPending;
   const executeError = releaseAction.error || refundAction.error;
+  const reasoning = resolution?.rationale_cid ?? "";
 
   useEffect(() => {
     trackEvent("view_resolution", {
@@ -100,6 +100,31 @@ const ResolutionPage: FC = () => {
           <Shield className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
           <h2 className="text-xl font-semibold mb-2">Wallet Required</h2>
           <Button onClick={() => navigate("/wallet-connect")}>Connect Wallet</Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show "awaiting resolution" when no resolution ticket exists yet
+  if (!resolutionLoading && !resolution && deal) {
+    return (
+      <div className="container mx-auto px-6 py-8">
+        <div className="max-w-4xl mx-auto">
+          <Button
+            variant="outline"
+            onClick={() => navigate(`/deal/${dealId}`)}
+            className="mb-4"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Deal
+          </Button>
+          <div className="text-center py-12">
+            <Clock className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Awaiting Resolution</h2>
+            <p className="text-muted-foreground">
+              The AI arbiter has not yet issued a resolution for this deal.
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -247,7 +272,7 @@ const ResolutionPage: FC = () => {
                     AI Reasoning
                   </h4>
                   <div className="bg-muted p-4 rounded-lg">
-                    <p className="text-sm leading-relaxed">{resolution.reason_short}</p>
+                    <p className="text-sm leading-relaxed">{reasoning}</p>
                   </div>
                 </div>
 

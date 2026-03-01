@@ -21,9 +21,8 @@ export const PageLayout: FC<PageLayoutProps> = ({
   const { publicKey } = useWallet();
   const navigate = useNavigate();
 
-  // Get user name from auth context or wallet address
-  const userName = user?.name || user?.displayName || 
-    (publicKey ? `${publicKey.toBase58().slice(0, 6)}…${publicKey.toBase58().slice(-4)}` : "User");
+  // Get user name from profile (displayName set during profile creation), fallback to name, then "User"
+  const userName = user?.displayName || user?.name || "User";
 
   const handleNotificationsClick = () => {
     navigate("/notifications");

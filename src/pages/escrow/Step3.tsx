@@ -11,7 +11,7 @@ import StepIndicator from "@/components/molecules/StepIndicator";
 import { ArrowRight, ArrowLeft, Shield, Clock, DollarSign, CheckCircle2, Info, AlertTriangle, Loader } from "lucide-react";
 import { useEscrowFlow } from "@/hooks/useEscrowFlow";
 import { useEvent } from "@/hooks/useEvent";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { useAction } from "@/hooks/useAction";
 
 /**
@@ -27,12 +27,12 @@ import { useAction } from "@/hooks/useAction";
  */
 
 const Step2: FC = () => {
+  const { connection } = useConnection();
   const { publicKey } = useWallet();
   const { data, back, next } = useEscrowFlow();
   const { trackEvent } = useEvent();
   const navigate = useNavigate();
   const { mutate: initiateEscrow, isPending: isInitiating, error: initiateError } = useAction("initiate");
-  const { mutate: fundEscrow, isPending: isFunding } = useAction("fund");
 
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -72,6 +72,17 @@ const Step2: FC = () => {
     setIsProcessing(true);
 
     try {
+      // Pre-flight: check SOL balance
+      const solBalance = await connection.getBalance(publicKey);
+      const MIN_SOL_LAMPORTS = 5_000_000; // 0.005 SOL
+      if (solBalance < MIN_SOL_LAMPORTS) {
+        throw new Error(
+          `Insufficient SOL balance (${(solBalance / 1e9).toFixed(4)} SOL). ` +
+          `Your wallet needs at least 0.005 SOL for transaction fees. ` +
+          `Airdrop devnet SOL at faucet.solana.com`
+        );
+      }
+
       // Track funding attempt
       trackEvent('fund_attempt', {
         amount: data.amount,
@@ -112,32 +123,17 @@ const Step2: FC = () => {
         metadata: data.isCarSale && data.carMetadata ? data.carMetadata as Record<string, unknown> : undefined,
       }, {
         onSuccess: async (result) => {
-          // If account was already initialized (empty txSig), proceed to fund
-          if (!result.txSig && result.dealId) {
-            // Account already exists, now fund it
-            fundEscrow({ dealId: result.dealId }, {
-              onSuccess: (fundResult) => {
-                trackEvent('fund_success', {
-                  deal_id: fundResult.dealId,
-                  amount: data.amount,
-                  platform_fee: platformFee,
-                  transaction_signature: fundResult.txSig,
-                });
-                localStorage.setItem('lastCreatedDealId', fundResult.dealId);
-                navigate(`/deal/${fundResult.dealId}`);
-              },
-              onError: (error) => {
-                console.error('Funding failed:', error);
-                trackEvent('fund_failed', {
-                  error: error.message,
-                  amount: data.amount,
-                });
-              },
+          // Validate that we have a transaction signature
+          if (!result.txSig) {
+            console.error('Initiate succeeded but no transaction signature received');
+            trackEvent('fund_failed', {
+              error: 'No transaction signature from initiate',
+              amount: data.amount,
             });
             return;
           }
 
-          // Track successful funding
+          // Track successful initiation
           trackEvent('fund_success', {
             deal_id: result.dealId,
             amount: data.amount,

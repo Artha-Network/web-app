@@ -121,6 +121,8 @@ export function useMyDeals(options?: { page?: number; pageSize?: number }) {
     queryKey: ["my-deals", wallet, page, pageSize],
     queryFn: () => fetchDealsForWallet(wallet!, page, pageSize),
     enabled: Boolean(wallet),
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -136,6 +138,36 @@ export function useDeal(dealId?: string) {
       const status = (query.state.data as DealRow | undefined)?.status;
       return status && ACTIVE_STATUSES.has(status) ? POLL_INTERVAL_MS : false;
     },
+    refetchIntervalInBackground: false,
+  });
+}
+
+export interface ResolutionData {
+  outcome: string;
+  confidence: number;
+  rationale_cid: string;
+  arbiter_pubkey: string;
+  signature: string;
+  issued_at: string;
+  expires_at: string | null;
+}
+
+async function fetchResolution(dealId: string): Promise<ResolutionData> {
+  const response = await fetch(`${ACTIONS_BASE_URL}/api/deals/${dealId}/resolution`);
+  if (!response.ok) {
+    throw new Error(`No resolution: ${response.status}`);
+  }
+  return await response.json();
+}
+
+export function useResolution(dealId?: string) {
+  return useQuery({
+    queryKey: ["resolution", dealId],
+    queryFn: () => fetchResolution(dealId!),
+    enabled: Boolean(dealId),
+    retry: false,
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -146,6 +178,8 @@ export function useRecentDealEvents(limit = 10) {
     queryKey: ["deal-events", wallet, limit],
     queryFn: () => fetchRecentEvents(wallet!, limit),
     enabled: Boolean(wallet),
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
   });
 }
 
