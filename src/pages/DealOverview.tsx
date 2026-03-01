@@ -8,6 +8,7 @@ import { useDeal } from "@/hooks/useDeals";
 import { useAction } from "@/hooks/useAction";
 import { useEvent } from "@/hooks/useEvent";
 import PageLayout from "@/components/layouts/PageLayout";
+import { toast } from "@/components/ui/sonner";
 import {
   ArrowLeft,
   ExternalLink,
@@ -17,7 +18,8 @@ import {
   RefreshCw,
   AlertTriangle,
   CheckCircle,
-  XCircle
+  XCircle,
+  Car
 } from "lucide-react";
 
 /**
@@ -102,10 +104,9 @@ const DealOverview: React.FC = () => {
           break;
       }
     } catch (error) {
-      trackDealEvent('fund_failed', dealId, {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        action_type: actionType
-      });
+      const message = error instanceof Error ? error.message : 'Action failed';
+      trackDealEvent('fund_failed', dealId, { error: message, action_type: actionType });
+      toast.error(message);
     }
   };
 
@@ -145,6 +146,16 @@ const DealOverview: React.FC = () => {
         description: 'If there\'s an issue, open a dispute for AI arbitration',
         link: `/dispute/${dealId}`,
         variant: 'destructive' as const
+      };
+    }
+
+    if (deal.status === "DISPUTED" && isParticipant) {
+      return {
+        type: 'manage_dispute',
+        label: 'Manage Dispute',
+        description: 'Submit evidence and track the AI arbitration process',
+        link: `/dispute/${dealId}`,
+        variant: 'outline' as const
       };
     }
 
@@ -307,6 +318,47 @@ const DealOverview: React.FC = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Vehicle Details (car sale metadata) */}
+        {deal?.metadata && typeof deal.metadata === 'object' && (deal.metadata as Record<string, unknown>).make && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Car className="w-5 h-5" />
+                Vehicle Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-3">
+              {['year', 'make', 'model'].map((field) => {
+                const val = (deal.metadata as Record<string, unknown>)[field];
+                return val ? (
+                  <div key={field}>
+                    <p className="text-sm text-muted-foreground capitalize">{field}</p>
+                    <p className="font-semibold">{String(val)}</p>
+                  </div>
+                ) : null;
+              })}
+              {(deal.metadata as Record<string, unknown>).vin && (
+                <div>
+                  <p className="text-sm text-muted-foreground">VIN</p>
+                  <p className="font-mono text-sm">{String((deal.metadata as Record<string, unknown>).vin)}</p>
+                </div>
+              )}
+              {(deal.metadata as Record<string, unknown>).odometerMiles !== undefined && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Odometer</p>
+                  <p className="font-semibold">{Number((deal.metadata as Record<string, unknown>).odometerMiles).toLocaleString()} mi</p>
+                </div>
+              )}
+              {(deal.metadata as Record<string, unknown>).deliveryType && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Delivery</p>
+                  <p className="font-semibold capitalize">{String((deal.metadata as Record<string, unknown>).deliveryType).replace(/_/g, ' ')}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* All Actions */}
         <Card>

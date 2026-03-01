@@ -23,7 +23,7 @@ import {
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useEvent } from "@/hooks/useEvent";
 import { useDeal } from "@/hooks/useDeals";
-import { useAction } from "@/hooks/useAction";
+import { useEvidenceList, useSubmitEvidence } from "@/hooks/useEvidence";
 
 /**
  * Evidence Submission Page
@@ -42,7 +42,10 @@ const EvidencePage: FC = () => {
   const navigate = useNavigate();
 
   const { data: deal, isLoading: dealLoading, error: dealError } = useDeal(dealId);
-  const { mutateAsync: submitEvidence, isPending: isSubmitting, error: submitError } = useAction('initiate');
+  const { mutateAsync: submitEvidence, isPending: isSubmitting, error: submitError } = useSubmitEvidence(dealId);
+  const { data: evidenceData, isLoading: evidenceLoading } = useEvidenceList(
+    deal?.status === "DISPUTED" ? dealId : undefined
+  );
 
   const [evidenceType, setEvidenceType] = useState<'text' | 'file' | 'both'>('text');
   const [description, setDescription] = useState('');
@@ -77,35 +80,25 @@ const EvidencePage: FC = () => {
 
   const handleSubmit = async () => {
     if (!dealId || !publicKey) return;
-
-    if (!description.trim() && files.length === 0) {
-      return; // Need at least description or files
-    }
+    if (!description.trim() && files.length === 0) return;
 
     try {
       setIsUploading(true);
-
-      // Submit evidence to AI arbiter
-      const result = await submitEvidence({
-        counterparty: deal.buyer_wallet || deal.seller_wallet || '',
-        amount: Number(deal.price_usd || 0),
-        description: `Evidence submission: ${description.trim()}`,
+      await submitEvidence({
+        description: description.trim() || `[File evidence: ${files.map(f => f.name).join(", ")}]`,
+        type: "text/plain",
       });
-
-      if (result?.dealId) {
-        // Track successful submission
-        trackEvent('evidence_submitted', {
-          deal_id: dealId,
-          evidence_type: evidenceType,
-          description_length: description.length,
-          file_count: files.length,
-        });
-
-        // Navigate back to deal overview
-        navigate(`/deal/${dealId}`);
-      }
-    } catch (error) {
-      console.error('Evidence submission failed:', error);
+      trackEvent("evidence_submitted", {
+        deal_id: dealId,
+        evidence_type: evidenceType,
+        description_length: description.length,
+        file_count: files.length,
+      });
+      // Clear form and stay on page so the updated evidence list is visible
+      setDescription("");
+      setFiles([]);
+    } catch {
+      // error handled by useSubmitEvidence toast
     } finally {
       setIsUploading(false);
     }
@@ -219,6 +212,59 @@ const EvidencePage: FC = () => {
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
               Evidence submission failed: {submitError?.message || 'Unknown error'}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Existing Evidence */}
+        {deal.status === "DISPUTED" && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5" />
+                Submitted Evidence
+                {evidenceData && (
+                  <span className="ml-1 text-sm font-normal text-muted-foreground">
+                    ({evidenceData.total} item{evidenceData.total !== 1 ? "s" : ""})
+                  </span>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {evidenceLoading ? (
+                <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                  <Loader className="w-4 h-4 animate-spin" />
+                  Loading evidence...
+                </div>
+              ) : evidenceData?.evidence.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No evidence submitted yet. Be the first to submit.</p>
+              ) : (
+                <div className="space-y-3">
+                  {evidenceData?.evidence.map((e) => (
+                    <div key={e.id} className="p-3 bg-muted rounded-lg">
+                      <div className="flex items-center justify-between mb-1">
+                        <Badge variant={e.role === "buyer" ? "default" : "secondary"}>
+                          {e.role}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(e.submitted_at).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="text-sm mt-1">{e.description}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Not DISPUTED warning */}
+        {deal.status !== "DISPUTED" && (
+          <Alert className="mb-6" variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              Evidence can only be submitted for deals in DISPUTED status. Current status: <strong>{deal.status}</strong>
             </AlertDescription>
           </Alert>
         )}
