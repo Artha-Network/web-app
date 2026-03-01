@@ -103,12 +103,13 @@ const Step2: FC = () => {
         counterparty: data.counterpartyAddress,
         amount: typeof data.amount === 'number' ? data.amount : 0,
         description: data.description,
-        title: data.title?.trim() || undefined, // Pass title from Step1, trim whitespace
+        title: data.title?.trim() || undefined,
         deliverBy,
         disputeDeadline,
         feeBps: 50, // 0.5% fee (50 basis points)
         buyerEmail,
         sellerEmail,
+        metadata: data.isCarSale && data.carMetadata ? data.carMetadata as Record<string, unknown> : undefined,
       }, {
         onSuccess: async (result) => {
           // If account was already initialized (empty txSig), proceed to fund
