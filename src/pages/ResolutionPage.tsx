@@ -15,13 +15,22 @@ import {
   ArrowLeft,
   Loader,
   FileText,
-  Info,
+  Info
 } from "lucide-react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useEvent } from "@/hooks/useEvent";
 import { useDeal, useResolution } from "@/hooks/useDeals";
 import { useAction } from "@/hooks/useAction";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+
+/**
+ * Resolution Display Page
+ * Route: /resolution/:id
+ * Purpose: Display AI arbitration resolution and allow execution
+ * Emits: view_ai_resolution, execute_ai_decision
+ * Storage: resolution data from Supabase
+ * AI: display AI arbiter decision, reasoning, confidence
+ * Solana: execute resolution on-chain
+ */
 
 const ResolutionPage: FC = () => {
   const { id: dealId } = useParams();
@@ -30,80 +39,107 @@ const ResolutionPage: FC = () => {
   const navigate = useNavigate();
 
   const { data: deal, isLoading: dealLoading, error: dealError } = useDeal(dealId);
-  const {
-    data: resolution,
-    isLoading: resolutionLoading,
-    error: resolutionError,
-  } = useResolution(dealId);
+  const { data: resolution, isLoading: resolutionLoading } = useResolution(dealId);
+  const { mutateAsync: executeRelease, isPending: isReleasePending, error: releaseError } = useAction('release');
+  const { mutateAsync: executeRefund, isPending: isRefundPending, error: refundError } = useAction('refund');
+  const isExecuting = isReleasePending || isRefundPending;
+  const executeError = releaseError ?? refundError;
 
-  const releaseAction = useAction("release");
-  const refundAction = useAction("refund");
+  const viewerWallet = publicKey?.toBase58();
+  const isBuyer = deal?.buyer_wallet === viewerWallet;
+  const isSeller = deal?.seller_wallet === viewerWallet;
 
-  const isExecuting = releaseAction.isPending || refundAction.isPending;
-  const executeError = releaseAction.error || refundAction.error;
-  const reasoning = resolution?.rationale_cid ?? "";
-
+  // Track page view on mount
   useEffect(() => {
-    trackEvent("view_resolution", {
+    trackEvent('view_resolution', {
       deal_id: dealId,
       amount: deal?.price_usd ? Number(deal.price_usd) : undefined,
       status: deal?.status,
     });
   }, [trackEvent, dealId, deal?.price_usd, deal?.status]);
 
-  const handleExecuteResolution = async () => {
-    if (!dealId || !publicKey || !resolution) return;
+  const handleExecuteResolution = async (action: 'release' | 'refund') => {
+    if (!dealId || !publicKey) return;
+
     try {
-      trackEvent("execute_ai_decision", {
+      // Track execution attempt
+      trackEvent('execute_ai_decision', {
         deal_id: dealId,
-        decision: resolution.outcome,
+        decision: action,
         amount: deal?.price_usd ? Number(deal.price_usd) : undefined,
       });
-      if (resolution.outcome === "RELEASE") {
-        await releaseAction.mutateAsync({ dealId });
-      } else {
-        await refundAction.mutateAsync({ dealId });
+
+      const result = action === 'refund'
+        ? await executeRefund({ dealId })
+        : await executeRelease({ dealId });
+
+      if (result?.dealId) {
+        // Navigate back to deal overview
+        navigate(`/deal/${dealId}`);
       }
-      navigate(`/deal/${dealId}`);
-    } catch {
-      // error handled by useAction toast
+    } catch (error) {
+      console.error('Resolution execution failed:', error);
     }
   };
 
+  // Show loading state
   if (dealLoading) {
     return (
       <div className="container mx-auto px-6 py-8">
-        <div className="max-w-4xl mx-auto text-center">
-          <Loader className="w-12 h-12 mx-auto text-muted-foreground mb-4 animate-spin" />
-          <h2 className="text-xl font-semibold mb-2">Loading Resolution...</h2>
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center">
+            <Loader className="w-12 h-12 mx-auto text-muted-foreground mb-4 animate-spin" />
+            <h2 className="text-xl font-semibold mb-2">Loading Resolution...</h2>
+          </div>
         </div>
       </div>
     );
   }
 
+  // Show error state
   if (dealError || !deal) {
     return (
       <div className="container mx-auto px-6 py-8">
-        <div className="max-w-4xl mx-auto text-center">
-          <AlertTriangle className="w-12 h-12 mx-auto text-red-500 mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Deal Not Found</h2>
-          <Button onClick={() => navigate("/deals")}>View All Deals</Button>
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center">
+            <AlertTriangle className="w-12 h-12 mx-auto text-red-500 mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Deal Not Found</h2>
+            <p className="text-muted-foreground mb-4">
+              The requested deal could not be found.
+            </p>
+            <Button onClick={() => navigate('/deals')}>
+              View All Deals
+            </Button>
+          </div>
         </div>
       </div>
     );
   }
 
+  // Show wallet connection requirement
   if (!publicKey) {
     return (
       <div className="container mx-auto px-6 py-8">
-        <div className="max-w-4xl mx-auto text-center">
-          <Shield className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Wallet Required</h2>
-          <Button onClick={() => navigate("/wallet-connect")}>Connect Wallet</Button>
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center">
+            <Shield className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Wallet Required</h2>
+            <p className="text-muted-foreground mb-4">
+              Please connect your wallet to view the resolution.
+            </p>
+            <Button onClick={() => navigate('/wallet-connect')}>
+              Connect Wallet
+            </Button>
+          </div>
         </div>
       </div>
     );
   }
+
+  const decision = resolution?.outcome ?? null;
+  const confidence = resolution?.confidence ?? 0;
+  const reasoning = resolution?.rationale_cid ?? "";
+  const resolvedAt = resolution?.issued_at ?? null;
 
   // Show "awaiting resolution" when no resolution ticket exists yet
   if (!resolutionLoading && !resolution && deal) {
@@ -133,6 +169,7 @@ const ResolutionPage: FC = () => {
   return (
     <div className="container mx-auto px-6 py-8">
       <div className="max-w-4xl mx-auto">
+
         {/* Header */}
         <div className="mb-6">
           <Button
@@ -143,8 +180,11 @@ const ResolutionPage: FC = () => {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Deal
           </Button>
+
           <h1 className="text-3xl font-bold mb-2">AI Arbitration Resolution</h1>
-          <p className="text-muted-foreground">Final decision for deal {dealId?.slice(0, 8)}...</p>
+          <p className="text-muted-foreground">
+            Final decision for deal {dealId?.slice(0, 8)}...
+          </p>
         </div>
 
         {/* Deal Info */}
@@ -158,21 +198,11 @@ const ResolutionPage: FC = () => {
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Amount</span>
-              <span className="font-bold">
-                ${deal.price_usd ? Number(deal.price_usd).toLocaleString() : "0"} USDC
-              </span>
+              <span className="font-bold">${deal.price_usd ? Number(deal.price_usd).toLocaleString() : '0'} USDC</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Status</span>
-              <Badge
-                variant={
-                  deal.status === "DISPUTED"
-                    ? "destructive"
-                    : deal.status === "RESOLVED"
-                    ? "secondary"
-                    : "default"
-                }
-              >
+              <Badge variant={deal.status === 'DISPUTED' ? 'destructive' : deal.status === 'RESOLVED' ? 'secondary' : 'default'}>
                 {deal.status}
               </Badge>
             </div>
@@ -183,207 +213,211 @@ const ResolutionPage: FC = () => {
           </CardContent>
         </Card>
 
-        {/* Execute Error Alert */}
+        {/* Error Alert */}
         {executeError && (
           <Alert variant="destructive" className="mb-6">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              Execution failed: {executeError?.message || "Unknown error"}
+              Resolution execution failed: {executeError?.message || 'Unknown error'}
             </AlertDescription>
           </Alert>
         )}
 
-        {/* Resolution loading / pending / data */}
-        {resolutionLoading ? (
-          <Card className="mb-6">
-            <CardContent className="py-8 text-center">
-              <Loader className="w-8 h-8 mx-auto text-muted-foreground mb-3 animate-spin" />
-              <p className="text-muted-foreground">Fetching AI resolution...</p>
-            </CardContent>
-          </Card>
-        ) : resolutionError || !resolution ? (
-          <Card className="mb-6 border-blue-200">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-blue-700">
-                <Brain className="w-5 h-5" />
-                Arbitration Pending
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+        {/* AI Resolution */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Brain className="w-5 h-5" />
+              AI Arbitration Decision
+            </CardTitle>
+            <CardDescription>
+              Powered by Gemini 1.5 Pro with advanced reasoning
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+
+            {/* Decision */}
+            <div className="text-center p-6 bg-muted rounded-lg">
+              <div className="flex items-center justify-center gap-3 mb-3">
+                {decision === 'RELEASE' ? (
+                  <CheckCircle2 className="w-8 h-8 text-green-600" />
+                ) : (
+                  <DollarSign className="w-8 h-8 text-blue-600" />
+                )}
+                <div>
+                  <h3 className="text-xl font-bold">
+                    {decision === 'RELEASE' ? 'Release Funds' : 'Refund Buyer'}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Confidence: {(confidence * 100).toFixed(1)}%
+                  </p>
+                </div>
+              </div>
+
+              {decision === 'RELEASE' ? (
+                <p className="text-sm text-green-700 dark:text-green-300">
+                  The seller has fulfilled their obligations. Funds should be released.
+                </p>
+              ) : (
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  The buyer's claim is valid. A refund should be processed.
+                </p>
+              )}
+            </div>
+
+            {/* Reasoning */}
+            <div>
+              <h4 className="font-medium mb-3 flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                AI Reasoning
+              </h4>
+              <div className="bg-muted p-4 rounded-lg">
+                <p className="text-sm leading-relaxed">
+                  {reasoning}
+                </p>
+              </div>
+            </div>
+
+            {/* Timestamp */}
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Clock className="w-4 h-4" />
+              <span>
+                Resolution completed on {new Date(resolvedAt || new Date().toISOString()).toLocaleString()}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Action Section */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Execute Decision</CardTitle>
+            <CardDescription>
+              Execute the AI arbitration decision on the blockchain
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertDescription>
-                  No verdict has been issued yet. Go to the{" "}
-                  <a
-                    href={`/dispute/${dealId}`}
-                    className="underline font-medium"
-                  >
-                    Dispute page
-                  </a>{" "}
-                  to submit evidence and trigger AI arbitration.
+                  This action will execute the AI arbitration decision on the Solana blockchain.
+                  Once executed, the decision is final and cannot be reversed.
                 </AlertDescription>
               </Alert>
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            {/* AI Resolution */}
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Brain className="w-5 h-5" />
-                  AI Arbitration Decision
-                </CardTitle>
-                <CardDescription>Powered by AI with advanced reasoning</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Decision */}
-                <div className="text-center p-6 bg-muted rounded-lg">
-                  <div className="flex items-center justify-center gap-3 mb-3">
-                    {resolution.outcome === "RELEASE" ? (
-                      <CheckCircle2 className="w-8 h-8 text-green-600" />
+
+              <div className="flex justify-center">
+                {/* On-chain: release = seller signs (claims funds), refund = buyer signs (claims refund) */}
+                {decision === 'RELEASE' && isSeller && (
+                  <Button
+                    onClick={() => handleExecuteResolution('release')}
+                    disabled={isExecuting}
+                    className="min-w-[160px]"
+                    size="lg"
+                  >
+                    {isExecuting ? (
+                      <>
+                        <Loader className="w-4 h-4 mr-2 animate-spin" />
+                        Processing...
+                      </>
                     ) : (
-                      <DollarSign className="w-8 h-8 text-blue-600" />
+                      <>
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                        Claim Funds
+                      </>
                     )}
-                    <div>
-                      <h3 className="text-xl font-bold">
-                        {resolution.outcome === "RELEASE" ? "Release Funds" : "Refund Buyer"}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        Confidence: {(resolution.confidence * 100).toFixed(1)}%
-                      </p>
-                    </div>
-                  </div>
-                  {resolution.outcome === "RELEASE" ? (
-                    <p className="text-sm text-green-700 dark:text-green-300">
-                      The seller has fulfilled their obligations. Funds should be released.
-                    </p>
-                  ) : (
-                    <p className="text-sm text-blue-700 dark:text-blue-300">
-                      The buyer's claim is valid. A refund should be processed.
-                    </p>
-                  )}
-                </div>
-
-                {/* Reasoning */}
-                <div>
-                  <h4 className="font-medium mb-3 flex items-center gap-2">
-                    <FileText className="w-4 h-4" />
-                    AI Reasoning
-                  </h4>
-                  <div className="bg-muted p-4 rounded-lg">
-                    <p className="text-sm leading-relaxed">{reasoning}</p>
-                  </div>
-                </div>
-
-                {/* Rationale CID if available */}
-                {resolution.rationale_cid && (
-                  <div>
-                    <h4 className="font-medium mb-2 flex items-center gap-2">
-                      <ExternalLink className="w-4 h-4" />
-                      Full Rationale
-                    </h4>
-                    <a
-                      href={`https://ipfs.io/ipfs/${resolution.rationale_cid}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-primary underline"
-                    >
-                      View on IPFS: {resolution.rationale_cid.slice(0, 20)}...
-                    </a>
-                  </div>
+                  </Button>
                 )}
-
-                {/* Timestamp */}
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Clock className="w-4 h-4" />
-                  <span>
-                    Issued on {new Date(resolution.issued_at).toLocaleString()}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Action Section */}
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle>Execute Decision</CardTitle>
-                <CardDescription>
-                  Execute the AI arbitration decision on the blockchain
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <Alert>
+                {decision === 'RELEASE' && isBuyer && (
+                  <Alert className="max-w-md">
                     <Info className="h-4 w-4" />
                     <AlertDescription>
-                      This action will execute the AI arbitration decision on the Solana blockchain.
-                      Once executed, the decision is final and cannot be reversed.
+                      The AI ruled in favor of the seller. The seller will claim the funds.
                     </AlertDescription>
                   </Alert>
-                  <div className="flex justify-center">
-                    <ConfirmDialog
-                      trigger={
-                        resolution.outcome === "RELEASE" ? (
-                          <Button disabled={isExecuting} className="min-w-[160px]" size="lg">
-                            {isExecuting ? (
-                              <><Loader className="w-4 h-4 mr-2 animate-spin" />Processing...</>
-                            ) : (
-                              <><CheckCircle2 className="w-4 h-4 mr-2" />Release Funds</>
-                            )}
-                          </Button>
-                        ) : (
-                          <Button disabled={isExecuting} className="min-w-[160px]" size="lg" variant="outline">
-                            {isExecuting ? (
-                              <><Loader className="w-4 h-4 mr-2 animate-spin" />Processing...</>
-                            ) : (
-                              <><DollarSign className="w-4 h-4 mr-2" />Process Refund</>
-                            )}
-                          </Button>
-                        )
-                      }
-                      title={resolution.outcome === "RELEASE" ? "Release Funds?" : "Process Refund?"}
-                      description={
-                        resolution.outcome === "RELEASE"
-                          ? "This will execute the AI verdict on-chain and release USDC to the seller. This action is final and cannot be reversed."
-                          : "This will execute the AI verdict on-chain and return USDC to the buyer. This action is final and cannot be reversed."
-                      }
-                      confirmLabel={resolution.outcome === "RELEASE" ? "Release Funds" : "Process Refund"}
-                      variant={resolution.outcome === "RELEASE" ? "default" : "destructive"}
-                      onConfirm={handleExecuteResolution}
-                      disabled={isExecuting}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </>
-        )}
+                )}
+                {decision === 'REFUND' && isBuyer && (
+                  <Button
+                    onClick={() => handleExecuteResolution('refund')}
+                    disabled={isExecuting}
+                    className="min-w-[160px]"
+                    size="lg"
+                    variant="outline"
+                  >
+                    {isExecuting ? (
+                      <>
+                        <Loader className="w-4 h-4 mr-2 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <DollarSign className="w-4 h-4 mr-2" />
+                        Claim Refund
+                      </>
+                    )}
+                  </Button>
+                )}
+                {decision === 'REFUND' && isSeller && (
+                  <Alert className="max-w-md">
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                      The AI ruled in favor of the buyer. The buyer will claim their refund.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Appeal Process */}
+        {/* Human Arbitration */}
         <Card>
           <CardHeader>
-            <CardTitle>Dispute This Decision</CardTitle>
-            <CardDescription>If you disagree with this resolution</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-amber-600" />
+              Request Human Arbitration
+            </CardTitle>
+            <CardDescription>
+              If you disagree with the AI verdict, you can escalate to a human arbiter for a final, binding review.
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                AI arbitration decisions are designed to be fair and final. However, if you believe
-                there was an error in the analysis, you can:
-              </p>
-              <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
-                <li>Contact our support team for a human review</li>
-                <li>Provide additional evidence that wasn't considered</li>
-                <li>Request clarification on the reasoning</li>
-              </ul>
+            <div className="space-y-4">
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4 space-y-2">
+                <h4 className="font-semibold text-sm text-amber-800 dark:text-amber-200">How Human Arbitration Works</h4>
+                <ul className="text-xs text-amber-700 dark:text-amber-300 list-disc list-inside space-y-1">
+                  <li>A qualified human arbiter reviews all evidence, the AI verdict, and both parties' claims</li>
+                  <li>The human arbiter has full access to all deal data, contract, and submitted evidence</li>
+                  <li>The human verdict is <strong>final and binding</strong> — it overrides the AI decision</li>
+                  <li>Typical review time: 24-48 hours</li>
+                </ul>
+              </div>
+
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Human arbitration is the last resort. The human arbiter's decision is <strong>final and cannot be appealed</strong>.
+                  Make sure all your evidence has been submitted before requesting this.
+                </AlertDescription>
+              </Alert>
+
               <div className="flex gap-3">
-                <Button variant="outline" size="sm">
-                  Contact Support
-                </Button>
-                <Button variant="outline" size="sm">
-                  <ExternalLink className="w-3 h-3 mr-1" />
-                  View Terms
+                <Button
+                  variant="outline"
+                  className="border-amber-300 hover:bg-amber-50 dark:border-amber-700 dark:hover:bg-amber-950/50"
+                  onClick={() => {
+                    if (window.confirm(
+                      "Are you sure you want to request human arbitration? The human arbiter's decision is final and cannot be appealed."
+                    )) {
+                      window.open(
+                        `mailto:support@artha.network?subject=Human%20Arbitration%20Request%20-%20Deal%20${dealId}&body=Deal%20ID:%20${dealId}%0A%0AReason%20for%20requesting%20human%20review:%0A`,
+                        "_blank"
+                      );
+                    }
+                  }}
+                >
+                  <Shield className="w-4 h-4 mr-2" />
+                  Request Human Arbitration
                 </Button>
               </div>
             </div>

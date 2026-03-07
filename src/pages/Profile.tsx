@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,7 @@ const Profile: React.FC = () => {
   const { refreshUser, user: authUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [emailAddress, setEmailAddress] = useState("");
@@ -121,7 +122,8 @@ const Profile: React.FC = () => {
       // Otherwise, stay on profile page
       if (requireSetup || isProfileIncomplete) {
         setTimeout(() => {
-          const redirectTo = (location.state as any)?.from?.pathname || '/dashboard';
+          const returnTo = searchParams.get('returnTo');
+          const redirectTo = returnTo || (location.state as any)?.from?.pathname || '/dashboard';
           navigate(redirectTo, { replace: true });
         }, 500);
       }

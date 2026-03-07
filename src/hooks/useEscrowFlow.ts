@@ -28,6 +28,7 @@ export interface EscrowFlowData {
   fundingMethod: FundingMethod;
   deliveryDeadline: string; // ISO string
   disputeWindowDays: number | "";
+  vin?: string;
   contract?: string;
   questions?: string[];
   isCarSale?: boolean;
@@ -39,6 +40,8 @@ const EscrowFlowSchema = z.object({
   title: z.string().optional().default(""),
   role: z.enum(["buyer", "seller"]).default("buyer"),
   counterpartyAddress: z.string().optional().default(""),
+  counterpartyEmail: z.string().optional().default(""),
+  userEmail: z.string().optional().default(""),
   amount: z.union([z.number(), z.literal(""), z.string()]).transform(val => val === "" ? "" : Number(val)),
   description: z.string().optional().default(""),
   initiatorDeadline: z.string().optional().default(""),
@@ -46,6 +49,7 @@ const EscrowFlowSchema = z.object({
   fundingMethod: z.enum(["Wallet", "Sponsored", "Manual Transfer"]).default("Wallet"),
   deliveryDeadline: z.string().optional().default(""),
   disputeWindowDays: z.union([z.number(), z.literal("")]).optional().default(""),
+  vin: z.string().optional().default(""),
   contract: z.string().optional(),
   questions: z.array(z.string()).optional(),
   isCarSale: z.boolean().optional().default(false),
@@ -76,37 +80,34 @@ const defaultData: EscrowFlowData = {
   fundingMethod: "Wallet",
   deliveryDeadline: "",
   disputeWindowDays: "",
+  vin: "",
   contract: "",
   questions: [],
   isCarSale: false,
   carMetadata: {},
 };
 
+function loadFromStorage(): EscrowFlowData {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const result = EscrowFlowSchema.safeParse(parsed);
+      if (result.success) {
+        return { ...defaultData, ...result.data } as EscrowFlowData;
+      }
+      console.warn("Escrow flow data validation failed, resetting storage", result.error);
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  } catch (e) {
+    console.error("Failed to load escrow flow data", e);
+  }
+  return defaultData;
+}
+
 export function useEscrowFlow() {
   const navigate = useNavigate();
-  const [data, setData] = useState<EscrowFlowData>(defaultData);
-
-  // Load from storage on mount (non-blocking) with Schema Validation
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        const result = EscrowFlowSchema.safeParse(parsed);
-        if (result.success) {
-          // Merge validated data, ensuring types match EscrowFlowData
-          // Note: transform in schema handles string->number conversion for amount if needed
-          setData(prev => ({ ...prev, ...result.data } as EscrowFlowData));
-        } else {
-          console.warn("Escrow flow data validation failed, resetting storage", result.error);
-          localStorage.removeItem(STORAGE_KEY);
-        }
-      }
-    } catch (e) {
-      console.error("Failed to load escrow flow data", e);
-      // ignore storage errors
-    }
-  }, []);
+  const [data, setData] = useState<EscrowFlowData>(loadFromStorage);
 
   // Save to storage on change
   useEffect(() => {

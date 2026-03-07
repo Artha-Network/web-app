@@ -6,7 +6,14 @@
 import React, { useMemo } from "react";
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import { PhantomWalletAdapter, SolflareWalletAdapter } from "@solana/wallet-adapter-wallets";
+import {
+  PhantomWalletAdapter,
+  SolflareWalletAdapter,
+  CoinbaseWalletAdapter,
+  TrustWalletAdapter,
+  LedgerWalletAdapter,
+  TorusWalletAdapter,
+} from "@solana/wallet-adapter-wallets";
 import { getConfiguredCluster } from "@/utils/solana";
 import { clusterApiUrl } from "@solana/web3.js";
 
@@ -16,7 +23,11 @@ const getWallets = () => {
   try {
     const phantom = new PhantomWalletAdapter();
     const solflare = new SolflareWalletAdapter();
-    return [phantom, solflare];
+    const coinbase = new CoinbaseWalletAdapter();
+    const trust = new TrustWalletAdapter();
+    const ledger = new LedgerWalletAdapter();
+    const torus = new TorusWalletAdapter();
+    return [phantom, solflare, coinbase, trust, ledger, torus];
   } catch (error) {
     console.warn("Wallet adapter init failed", error);
     return [];
@@ -46,7 +57,7 @@ export const SolanaWalletProvider: React.FC<{ children: React.ReactNode }> = ({ 
     <ConnectionProvider endpoint={endpoint}>
       <WalletProvider
         wallets={wallets}
-        autoConnect={false}
+        autoConnect={true}
         onError={(error) => {
           if (error?.name === "WalletNotReadyError") {
             console.warn("Wallet not ready; user likely needs to install/enable wallet", error);

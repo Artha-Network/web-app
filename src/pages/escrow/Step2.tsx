@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import EscrowFlowTemplate from "@/templates/EscrowFlowTemplate";
 import EscrowStepLayout from "@/components/organisms/EscrowStepLayout";
 import StepIndicator from "@/components/molecules/StepIndicator";
-import { Brain, CheckCircle2, Loader2, AlertTriangle, ArrowRight, ArrowLeft } from "lucide-react";
+import { Brain, CheckCircle2, Loader2, AlertTriangle, ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
 import { useEscrowFlow } from "@/hooks/useEscrowFlow";
 import { useWallet } from "@solana/wallet-adapter-react";
 
@@ -18,17 +18,15 @@ const Step2: FC = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        // If we already have a contract, don't regenerate unless forced (could add a regenerate button later)
-        if (data.contract) return;
-
-        const generateContract = async () => {
-            setLoading(true);
-            setError(null);
-            try {
-                const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/ai/generate-contract`, {
+    const generateContract = async () => {
+        setLoading(true);
+        setError(null);
+        updateData({ contract: "", questions: [] });
+        try {
+            const response = await fetch(`${import.meta.env.VITE_ACTIONS_SERVER_URL || import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/ai/generate-contract`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
+                    signal: AbortSignal.timeout(65_000),
                     body: JSON.stringify({
                         title: data.title,
                         role: data.role,
@@ -68,15 +66,20 @@ const Step2: FC = () => {
             } catch (err) {
                 console.error("AI Generation Error:", err);
                 setError(`Failed to generate contract: ${err instanceof Error ? err.message : String(err)}`);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        if (data.title && data.amount) {
-            generateContract();
+        } finally {
+            setLoading(false);
         }
-    }, [data, updateData]);
+    };
+
+    useEffect(() => {
+        if (!data.title || !data.amount) {
+            // State was lost (e.g. page refresh before completing Step 1)
+            navigate("/escrow/step1");
+            return;
+        }
+        if (data.contract) return;
+        generateContract();
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleContinue = () => {
         navigate("/escrow/step3");
@@ -98,7 +101,7 @@ const Step2: FC = () => {
                             <AlertTriangle className="h-4 w-4" />
                             <AlertTitle>Error</AlertTitle>
                             <AlertDescription>{error}</AlertDescription>
-                            <Button variant="outline" size="sm" onClick={() => window.location.reload()} className="mt-2">
+                            <Button variant="outline" size="sm" onClick={generateContract} className="mt-2">
                                 Retry
                             </Button>
                         </Alert>
@@ -158,9 +161,14 @@ const Step2: FC = () => {
                                 >
                                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Details
                                 </Button>
-                                <Button onClick={handleContinue} className="bg-green-600 hover:bg-green-700">
-                                    Accept & Continue <ArrowRight className="ml-2 h-4 w-4" />
-                                </Button>
+                                <div className="flex gap-3">
+                                    <Button variant="outline" onClick={generateContract} disabled={loading}>
+                                        <RefreshCw className="mr-2 h-4 w-4" /> Regenerate
+                                    </Button>
+                                    <Button onClick={handleContinue} className="bg-green-600 hover:bg-green-700">
+                                        Accept & Continue <ArrowRight className="ml-2 h-4 w-4" />
+                                    </Button>
+                                </div>
                             </div>
                         </div>
                     ) : null}

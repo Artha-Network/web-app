@@ -13,6 +13,8 @@ export interface InitiatePayload {
   title?: string;
   buyerEmail?: string;
   sellerEmail?: string;
+  vin?: string;
+  contract?: string;
   payer: string;
   metadata?: Record<string, unknown>;
 }
@@ -208,6 +210,13 @@ export async function refund(dealId: string, actorWallet?: string): Promise<Acti
   });
 }
 
+export async function openDispute(dealId: string, callerWallet: string): Promise<ActionResponse> {
+  return request<ActionResponse>("/actions/open-dispute", {
+    dealId,
+    callerWallet,
+  });
+}
+
 export async function confirm(payload: ConfirmPayload) {
   let actorWallet = payload.actorWallet;
   if (!actorWallet) {
@@ -262,6 +271,7 @@ export const actionsService = {
   fund,
   release,
   refund,
+  openDispute,
   confirm,
   openDispute,
   submitEvidence,

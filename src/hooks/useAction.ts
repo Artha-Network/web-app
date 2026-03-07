@@ -5,7 +5,7 @@ import { toast } from "@/components/ui/sonner";
 import { useWalletTransactions } from "./useWalletTransactions";
 import actionsService from "@/services/actions";
 
-type ActionKey = "initiate" | "fund" | "release" | "refund" | "open-dispute";
+type ActionKey = "initiate" | "fund" | "release" | "refund" | "openDispute";
 
 interface InitiateVariables {
   counterparty: string;
@@ -18,7 +18,8 @@ interface InitiateVariables {
   buyerEmail?: string;
   sellerEmail?: string;
   role?: "buyer" | "seller";
-  metadata?: Record<string, unknown>;
+  vin?: string;
+  contract?: string;
 }
 
 interface ActionVariablesMap {
@@ -26,7 +27,7 @@ interface ActionVariablesMap {
   fund: { dealId: string };
   release: { dealId: string };
   refund: { dealId: string };
-  "open-dispute": { dealId: string };
+  openDispute: { dealId: string };
 }
 
 type MutationVariables<T extends ActionKey> = ActionVariablesMap[T];
@@ -67,8 +68,9 @@ export function useAction<T extends ActionKey>(action: T) {
             title: payload.title,
             buyerEmail: payload.buyerEmail,
             sellerEmail: payload.sellerEmail,
+            vin: payload.vin,
+            contract: payload.contract,
             payer: viewerWallet,
-            metadata: payload.metadata,
           });
           actionVerb = "INITIATE";
           dealId = response.dealId;
@@ -99,7 +101,7 @@ export function useAction<T extends ActionKey>(action: T) {
           actorWallet = viewerWallet;
           break;
         }
-        case "open-dispute": {
+        case "openDispute": {
           const { dealId: id } = variables as { dealId: string };
           response = await actionsService.openDispute(id, viewerWallet);
           actionVerb = "OPEN_DISPUTE";
@@ -111,8 +113,18 @@ export function useAction<T extends ActionKey>(action: T) {
           throw new Error("Unsupported action");
       }
 
-      // Validate that transaction is present
+      // If backend says the escrow already exists on-chain (empty tx), skip signing
+      // and return the existing dealId so the UI can navigate to it.
       if (!response.txMessageBase64 || response.txMessageBase64.trim() === "") {
+        if (action === "initiate" && dealId) {
+          toast.success("Deal already exists — redirecting…");
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["my-deals"] }),
+            queryClient.invalidateQueries({ queryKey: ["deal", dealId] }),
+            queryClient.invalidateQueries({ queryKey: ["deal-events"] }),
+          ]);
+          return { dealId, txSig: "" };
+        }
         throw new Error("No transaction received from server. The escrow contract must be created on-chain.");
       }
 
@@ -120,10 +132,10 @@ export function useAction<T extends ActionKey>(action: T) {
       try {
         const txSig = await signAndSendBase64Tx(response.txMessageBase64);
         toast.loading("Confirming on-chain event…", { id: pendingId });
-        
+
         // Always call confirm - backend will handle mock signatures gracefully
         await actionsService.confirm({ dealId, txSig, action: actionVerb, actorWallet });
-        
+
         // Invalidate all deal-related queries to ensure UI updates
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ["my-deals"] }),
@@ -133,7 +145,7 @@ export function useAction<T extends ActionKey>(action: T) {
           queryClient.refetchQueries({ queryKey: ["my-deals"] }),
           queryClient.refetchQueries({ queryKey: ["deal", dealId] }),
         ]);
-        
+
         // Show success message - make it appear as if everything worked correctly
         toast.success("Contract created successfully", { id: pendingId });
         return { dealId, txSig };

@@ -3,6 +3,16 @@ import { useNavigate } from "react-router-dom";
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { Banknote, Gavel, CheckCircle2, ArrowRightCircle, Repeat, RefreshCw, Wallet, Globe, DollarSign, AlertCircle } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import HeaderBar from "@/components/organisms/HeaderBar";
 import DashboardGreeting from "@/components/organisms/DashboardGreeting";
 import DealActions from "@/components/molecules/DealActions";
@@ -13,12 +23,10 @@ import RecentActivityTimeline from "@/components/organisms/RecentActivityTimelin
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/context/AuthContext"; // Use unified AuthContext
 import { useModalContext } from "@/context/ModalContext";
 import { useMyDeals, useRecentDealEvents, statusToBadge, useDeleteDeal } from "@/hooks/useDeals";
 import { useEvent } from "@/hooks/useEvent";
-import { useNotifications } from "@/hooks/useNotifications";
 import { getConfiguredCluster } from '@/utils/solana';
 import type { DealCardProps } from "@/components/molecules/DealCard";
 import WalletConnectModal from "@/components/modals/WalletConnectModal";
@@ -30,6 +38,7 @@ const INSTRUCTION_NOTIFICATION_MAP: Record<string, { icon: JSX.Element; colorCla
   OPEN_DISPUTE: { icon: <Gavel className="text-red-600 w-7 h-7" aria-hidden />, colorClass: "text-red-600" },
   RESOLVE: { icon: <CheckCircle2 className="text-amber-600 w-7 h-7" aria-hidden />, colorClass: "text-amber-600" },
 };
+
 const fallbackActivities = [
   {
     id: "placeholder-fund",
@@ -68,12 +77,9 @@ const Dashboard: FC = () => {
   const [solBalance, setSolBalance] = useState<number | null>(null);
   const [isBalanceLoading, setIsBalanceLoading] = useState(false);
   const [cluster] = useState(getConfiguredCluster());
-  const [debugInfo, setDebugInfo] = useState<{
-    rpcEndpoint: string;
-    walletAddress: string;
-    balanceSource: string;
-  } | null>(null);
   const [showConnectModal, setShowConnectModal] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const address = publicKey?.toBase58();
   // Use display name from profile (set during profile creation), fallback to name, then "User"
@@ -84,9 +90,6 @@ const Dashboard: FC = () => {
   
   // Get modal context for opening wallet modal
   const { openWalletModal } = useModalContext();
-
-  // Real notifications
-  const { data: notificationsData } = useNotifications();
 
   // Track wallet connection events
   useEffect(() => {
@@ -116,14 +119,6 @@ const Dashboard: FC = () => {
       // Fetch SOL balance
       const solBalance = await connection.getBalance(publicKey);
       setSolBalance(solBalance / LAMPORTS_PER_SOL);
-
-      // Store debug info
-      setDebugInfo({
-        rpcEndpoint: connection.rpcEndpoint,
-        walletAddress: publicKey.toBase58(),
-        balanceSource: `Fetched from RPC: ${connection.rpcEndpoint}`,
-      });
-
     } catch (error) {
       console.error('Error fetching wallet data:', error);
     } finally {
@@ -147,20 +142,25 @@ const Dashboard: FC = () => {
 
   const deleteDeal = useDeleteDeal();
 
-  const handleDeleteDeal = async (dealId: string) => {
-    if (confirm("Are you sure you want to delete this deal? This action cannot be undone.")) {
-      trackEvent('deal_delete_click', { deal_id: dealId });
-      try {
-        await deleteDeal.mutateAsync(dealId);
-        // Toast or notification could go here
-      } catch (error) {
-        console.error("Failed to delete deal:", error);
-        alert("Failed to delete deal. Please try again.");
-      }
+  const handleDeleteDeal = (dealId: string) => {
+    setPendingDeleteId(dealId);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteDeal = async () => {
+    if (!pendingDeleteId) return;
+    trackEvent('deal_delete_click', { deal_id: pendingDeleteId });
+    try {
+      await deleteDeal.mutateAsync(pendingDeleteId);
+    } catch (error) {
+      console.error("Failed to delete deal:", error);
+    } finally {
+      setPendingDeleteId(null);
+      setDeleteDialogOpen(false);
     }
   };
 
-  const { data: dealsData, isLoading: isDealsLoading } = useMyDeals();
+  const { data: dealsData } = useMyDeals();
   const { data: eventsData } = useRecentDealEvents(6);
 
   const dealCards: ReadonlyArray<DealCardProps & { id: string }> = useMemo(() => {
@@ -340,9 +340,6 @@ const Dashboard: FC = () => {
                     <div className="flex items-center gap-2 text-sm text-green-600">
                       <CheckCircle2 className="w-4 h-4" />
                       <span>Wallet verified and authenticated</span>
-                      {authUser?.id && (
-                        <Badge variant="secondary" className="ml-2">User ID: {authUser.id.slice(0, 8)}</Badge>
-                      )}
                     </div>
                   ) : authError ? (
                     <div className="flex flex-col gap-2">
@@ -374,31 +371,6 @@ const Dashboard: FC = () => {
                     </div>
                   )}
                 </div>
-
-                {/* Debug Info Panel — dev only */}
-                {import.meta.env.DEV && debugInfo && (
-                  <div className="mt-4 pt-4 border-t bg-blue-50 dark:bg-blue-950 p-3 rounded-md">
-                    <p className="text-xs font-semibold text-blue-800 dark:text-blue-200 mb-2">🔍 Debug Information</p>
-                    <div className="space-y-1 text-xs text-blue-700 dark:text-blue-300">
-                      <div className="flex justify-between">
-                        <span className="font-medium">RPC Endpoint:</span>
-                        <span className="font-mono">{debugInfo.rpcEndpoint}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">Wallet Address:</span>
-                        <span className="font-mono">{debugInfo.walletAddress.slice(0, 8)}...{debugInfo.walletAddress.slice(-6)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">Balance Source:</span>
-                        <span className="font-mono text-[10px]">{debugInfo.balanceSource}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">Configured Cluster:</span>
-                        <span className="font-mono">{cluster}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
                   </>
                 )}
               </CardContent>
@@ -409,13 +381,7 @@ const Dashboard: FC = () => {
             <h2 className="text-gray-900 text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
               Your Active Deals
             </h2>
-            {isDealsLoading ? (
-              <div className="px-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="h-36 rounded-xl" />
-                ))}
-              </div>
-            ) : dealCards.length === 0 ? (
+            {dealCards.length === 0 ? (
               <div className="px-4 py-6 text-sm text-muted-foreground">No deals found for this wallet yet.</div>
             ) : (
               <ActiveDealsGrid deals={dealCards} onDelete={handleDeleteDeal} />
@@ -428,14 +394,7 @@ const Dashboard: FC = () => {
             <h2 className="text-gray-900 text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
               Notifications
             </h2>
-            <NotificationsList items={(notificationsData?.notifications ?? []).slice(0, 5).map((n) => ({
-              id: n.id,
-              icon: n.type === "dispute" ? <Gavel className="text-red-600 w-7 h-7" aria-hidden /> :
-                    n.type === "resolution" ? <CheckCircle2 className="text-blue-600 w-7 h-7" aria-hidden /> :
-                    <Banknote className="text-green-600 w-7 h-7" aria-hidden />,
-              title: n.title,
-              date: new Date(n.created_at).toLocaleDateString(),
-            }))} />
+            <NotificationsList items={notifications} />
 
             <h2 className="text-gray-900 text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
               Recent Activity
@@ -451,11 +410,33 @@ const Dashboard: FC = () => {
         onOpenChange={(open) => {
           setShowConnectModal(open);
           if (!open && !connected) {
-            // User dismissed modal without connecting - redirect to home
             navigate('/');
           }
         }}
       />
+
+      {/* Delete Deal Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Deal</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this deal? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingDeleteId(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteDeal}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

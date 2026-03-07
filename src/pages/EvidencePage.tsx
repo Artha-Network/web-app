@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   Upload,
   FileText,
-  Camera,
   MessageSquare,
   Shield,
   AlertTriangle,
@@ -18,455 +17,465 @@ import {
   Loader,
   CheckCircle2,
   ArrowLeft,
-  Brain
+  Brain,
+  User,
+  Clock,
+  Eye,
 } from "lucide-react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useEvent } from "@/hooks/useEvent";
 import { useDeal } from "@/hooks/useDeals";
-import { useEvidenceList, useSubmitEvidence } from "@/hooks/useEvidence";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import PageLayout from "@/components/layouts/PageLayout";
+import { API_BASE } from "@/lib/config";
 
-/**
- * Evidence Submission Page
- * Route: /evidence/:id
- * Purpose: Submit evidence for AI arbitration
- * Emits: evidence_submission_started, evidence_file_uploaded, evidence_submitted
- * Storage: evidence records in Supabase
- * AI: evidence submitted to AI arbiter for analysis
- * Solana: dispute status updated on-chain
- */
+interface EvidenceItem {
+  id: string;
+  deal_id: string;
+  description: string;
+  mime_type: string;
+  submitted_by: string;
+  submitted_by_name: string | null;
+  submitted_at: string;
+  role: "buyer" | "seller";
+}
+
+async function fetchEvidence(dealId: string): Promise<{ evidence: EvidenceItem[]; total: number }> {
+  const res = await fetch(`${API_BASE}/api/deals/${dealId}/evidence`);
+  if (!res.ok) throw new Error("Failed to fetch evidence");
+  return res.json();
+}
 
 const EvidencePage: FC = () => {
   const { id: dealId } = useParams();
   const { publicKey } = useWallet();
   const { trackEvent } = useEvent();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: deal, isLoading: dealLoading, error: dealError } = useDeal(dealId);
-  const { mutateAsync: submitEvidence, isPending: isSubmitting, error: submitError } = useSubmitEvidence(dealId);
-  const { data: evidenceData, isLoading: evidenceLoading } = useEvidenceList(
-    deal?.status === "DISPUTED" ? dealId : undefined
-  );
+  const { data: evidenceData, isLoading: evidenceLoading } = useQuery({
+    queryKey: ["evidence", dealId],
+    queryFn: () => fetchEvidence(dealId!),
+    enabled: Boolean(dealId),
+    refetchInterval: 10_000,
+  });
 
-  const [evidenceType, setEvidenceType] = useState<'text' | 'file' | 'both'>('text');
-  const [description, setDescription] = useState('');
+  const [evidenceType, setEvidenceType] = useState<"text" | "file" | "both">("text");
+  const [description, setDescription] = useState("");
   const [files, setFiles] = useState<File[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
 
-  // Track page view on mount
+  const walletAddress = publicKey?.toBase58();
+  const isBuyer = walletAddress && deal?.buyer_wallet === walletAddress;
+  const isSeller = walletAddress && deal?.seller_wallet === walletAddress;
+  const isParticipant = isBuyer || isSeller;
+
+  const evidenceList = evidenceData?.evidence ?? [];
+  const buyerEvidence = evidenceList.filter((e) => e.role === "buyer");
+  const sellerEvidence = evidenceList.filter((e) => e.role === "seller");
+
   useEffect(() => {
-    trackEvent('evidence_submission_started', {
-      deal_id: dealId,
-      amount: deal?.price_usd ? Number(deal.price_usd) : undefined,
-    });
-  }, [trackEvent, dealId, deal?.price_usd]);
+    if (dealId) {
+      trackEvent("evidence_page_viewed", { deal_id: dealId });
+    }
+  }, [trackEvent, dealId]);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files || []);
-    setFiles(prev => [...prev, ...selectedFiles]);
-
-    // Track file upload
-    selectedFiles.forEach(file => {
-      trackEvent('evidence_file_uploaded', {
-        deal_id: dealId,
-        file_type: file.type,
-        file_size: file.size,
-      });
-    });
+    setFiles((prev) => [...prev, ...selectedFiles]);
   };
 
   const removeFile = (index: number) => {
-    setFiles(prev => prev.filter((_, i) => i !== index));
+    setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async () => {
     if (!dealId || !publicKey) return;
     if (!description.trim() && files.length === 0) return;
 
+    setIsSubmitting(true);
+    setSubmitError(null);
+    setSubmitSuccess(false);
+
     try {
-      setIsUploading(true);
-      await submitEvidence({
-        description: description.trim() || `[File evidence: ${files.map(f => f.name).join(", ")}]`,
-        type: "text/plain",
-      });
+      if (description.trim() || evidenceType !== "file") {
+        const response = await fetch(`${API_BASE}/api/deals/${dealId}/evidence`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            description: description.trim(),
+            type: "text/plain",
+            wallet_address: publicKey.toBase58(),
+          }),
+        });
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.error || "Failed to submit evidence");
+        }
+      }
+
+      if (files.length > 0) {
+        await Promise.all(
+          files.map(async (file) => {
+            const formData = new FormData();
+            formData.append("file", file);
+            const uploadResponse = await fetch(
+              `${API_BASE}/api/deals/${dealId}/evidence/upload?wallet_address=${publicKey.toBase58()}`,
+              { method: "POST", body: formData }
+            );
+            if (!uploadResponse.ok) {
+              const err = await uploadResponse.json();
+              throw new Error(err.error || `Failed to upload ${file.name}`);
+            }
+          })
+        );
+      }
+
       trackEvent("evidence_submitted", {
         deal_id: dealId,
         evidence_type: evidenceType,
         description_length: description.length,
         file_count: files.length,
       });
-      // Clear form and stay on page so the updated evidence list is visible
+
+      setSubmitSuccess(true);
       setDescription("");
       setFiles([]);
-    } catch {
-      // error handled by useSubmitEvidence toast
+      queryClient.invalidateQueries({ queryKey: ["evidence", dealId] });
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Submission failed");
     } finally {
-      setIsUploading(false);
+      setIsSubmitting(false);
     }
   };
 
-  // Show loading state
   if (dealLoading) {
     return (
-      <div className="container mx-auto px-6 py-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center">
-            <Loader className="w-12 h-12 mx-auto text-muted-foreground mb-4 animate-spin" />
-            <h2 className="text-xl font-semibold mb-2">Loading Deal...</h2>
-          </div>
+      <PageLayout>
+        <div className="container mx-auto px-6 py-8 text-center">
+          <Loader className="w-12 h-12 mx-auto text-muted-foreground mb-4 animate-spin" />
+          <h2 className="text-xl font-semibold">Loading Deal...</h2>
         </div>
-      </div>
+      </PageLayout>
     );
   }
 
-  // Show error state
   if (dealError || !deal) {
     return (
-      <div className="container mx-auto px-6 py-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center">
-            <AlertTriangle className="w-12 h-12 mx-auto text-red-500 mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Deal Not Found</h2>
-            <p className="text-muted-foreground mb-4">
-              The requested deal could not be found.
-            </p>
-            <Button onClick={() => navigate('/deals')}>
-              View All Deals
-            </Button>
-          </div>
+      <PageLayout>
+        <div className="container mx-auto px-6 py-8 text-center">
+          <AlertTriangle className="w-12 h-12 mx-auto text-red-500 mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Deal Not Found</h2>
+          <Button onClick={() => navigate("/deals")}>View All Deals</Button>
         </div>
-      </div>
+      </PageLayout>
     );
   }
 
-  // Show wallet connection requirement
   if (!publicKey) {
     return (
-      <div className="container mx-auto px-6 py-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center">
-            <Shield className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Wallet Required</h2>
-            <p className="text-muted-foreground mb-4">
-              Please connect your wallet to submit evidence.
-            </p>
-            <Button onClick={() => navigate('/wallet-connect')}>
-              Connect Wallet
-            </Button>
-          </div>
+      <PageLayout>
+        <div className="container mx-auto px-6 py-8 text-center">
+          <Shield className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Wallet Required</h2>
+          <Button onClick={() => navigate("/wallet-connect")}>Connect Wallet</Button>
         </div>
-      </div>
+      </PageLayout>
     );
   }
 
   return (
-    <div className="container mx-auto px-6 py-8">
-      <div className="max-w-4xl mx-auto">
+    <PageLayout>
+      <div className="container mx-auto px-6 py-8">
+        <div className="max-w-5xl mx-auto space-y-6">
+          {/* Header */}
+          <div>
+            <Button variant="outline" onClick={() => navigate(`/deal/${dealId}`)} className="mb-4">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Deal
+            </Button>
+            <h1 className="text-3xl font-bold mb-1">Evidence & Claims</h1>
+            <p className="text-muted-foreground">
+              {deal.title ? `"${deal.title}"` : `Deal ${dealId?.slice(0, 8)}...`} — Both parties can view all submitted evidence.
+            </p>
+          </div>
 
-        {/* Header */}
-        <div className="mb-6">
-          <Button
-            variant="outline"
-            onClick={() => navigate(`/deal/${dealId}`)}
-            className="mb-4"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Deal
-          </Button>
+          {/* Evidence Summary */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardContent className="pt-6 text-center">
+                <p className="text-3xl font-bold">{evidenceList.length}</p>
+                <p className="text-sm text-muted-foreground">Total Evidence</p>
+              </CardContent>
+            </Card>
+            <Card className="border-blue-200 dark:border-blue-800">
+              <CardContent className="pt-6 text-center">
+                <p className="text-3xl font-bold text-blue-600">{buyerEvidence.length}</p>
+                <p className="text-sm text-muted-foreground">From Buyer</p>
+              </CardContent>
+            </Card>
+            <Card className="border-orange-200 dark:border-orange-800">
+              <CardContent className="pt-6 text-center">
+                <p className="text-3xl font-bold text-orange-600">{sellerEvidence.length}</p>
+                <p className="text-sm text-muted-foreground">From Seller</p>
+              </CardContent>
+            </Card>
+          </div>
 
-          <h1 className="text-3xl font-bold mb-2">Submit Evidence</h1>
-          <p className="text-muted-foreground">
-            Provide evidence for AI arbitration on deal {dealId?.slice(0, 8)}...
-          </p>
-        </div>
-
-        {/* Deal Info */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="w-5 h-5" />
-              Deal Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Amount</span>
-              <span className="font-bold">${deal.price_usd ? Number(deal.price_usd).toLocaleString() : '0'} USDC</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Status</span>
-              <Badge variant={deal.status === 'DISPUTED' ? 'destructive' : 'default'}>
-                {deal.status}
-              </Badge>
-            </div>
-            <div className="bg-muted p-3 rounded-lg">
-              <p className="text-sm">
-                <strong>Deal ID:</strong> {deal.id}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Error Alert */}
-        {submitError && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              Evidence submission failed: {submitError?.message || 'Unknown error'}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Existing Evidence */}
-        {deal.status === "DISPUTED" && (
-          <Card className="mb-6">
+          {/* All Evidence — visible to both parties */}
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5" />
-                Submitted Evidence
-                {evidenceData && (
-                  <span className="ml-1 text-sm font-normal text-muted-foreground">
-                    ({evidenceData.total} item{evidenceData.total !== 1 ? "s" : ""})
-                  </span>
-                )}
+                <Eye className="w-5 h-5" />
+                All Submitted Evidence
               </CardTitle>
+              <CardDescription>
+                Evidence from both parties is shown here. The AI arbiter reviews all of this when making a decision.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {evidenceLoading ? (
-                <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                  <Loader className="w-4 h-4 animate-spin" />
-                  Loading evidence...
+                <div className="text-center py-6">
+                  <Loader className="w-6 h-6 mx-auto animate-spin text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground mt-2">Loading evidence...</p>
                 </div>
-              ) : evidenceData?.evidence.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No evidence submitted yet. Be the first to submit.</p>
+              ) : evidenceList.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <FileText className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                  <p className="font-medium">No evidence submitted yet</p>
+                  <p className="text-sm mt-1">Both parties should submit evidence before requesting AI arbitration.</p>
+                </div>
               ) : (
-                <div className="space-y-3">
-                  {evidenceData?.evidence.map((e) => (
-                    <div key={e.id} className="p-3 bg-muted rounded-lg">
-                      <div className="flex items-center justify-between mb-1">
-                        <Badge variant={e.role === "buyer" ? "default" : "secondary"}>
-                          {e.role}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(e.submitted_at).toLocaleString()}
-                        </span>
+                <div className="space-y-4">
+                  {evidenceList.map((item) => {
+                    const isFromBuyer = item.role === "buyer";
+                    const isFromMe = item.submitted_by === walletAddress;
+                    return (
+                      <div
+                        key={item.id}
+                        className={`rounded-lg border p-4 ${
+                          isFromBuyer
+                            ? "border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-800"
+                            : "border-orange-200 bg-orange-50/50 dark:bg-orange-950/20 dark:border-orange-800"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <User className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-sm font-medium">
+                              {item.submitted_by_name || item.submitted_by.slice(0, 12) + "..."}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={
+                                isFromBuyer
+                                  ? "text-blue-700 border-blue-300 dark:text-blue-300 dark:border-blue-700"
+                                  : "text-orange-700 border-orange-300 dark:text-orange-300 dark:border-orange-700"
+                              }
+                            >
+                              {item.role}
+                            </Badge>
+                            {isFromMe && (
+                              <Badge variant="secondary" className="text-xs">You</Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Clock className="w-3 h-3" />
+                            {new Date(item.submitted_at).toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="mt-2">
+                          {item.mime_type === "text/plain" ? (
+                            <p className="text-sm whitespace-pre-wrap">{item.description}</p>
+                          ) : (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Upload className="w-4 h-4 text-muted-foreground" />
+                              <span className="text-muted-foreground">File attachment ({item.mime_type})</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-sm mt-1">{e.description}</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
           </Card>
-        )}
 
-        {/* Not DISPUTED warning */}
-        {deal.status !== "DISPUTED" && (
-          <Alert className="mb-6" variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              Evidence can only be submitted for deals in DISPUTED status. Current status: <strong>{deal.status}</strong>
-            </AlertDescription>
-          </Alert>
-        )}
+          {/* Submit New Evidence — only for participants, only when DISPUTED */}
+          {isParticipant && deal.status === "DISPUTED" && (
+            <>
+              {submitSuccess && (
+                <Alert className="border-green-200 bg-green-50 dark:bg-green-950/20">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <AlertDescription className="text-green-800 dark:text-green-200">
+                    Evidence submitted successfully. You can submit more or request AI arbitration.
+                  </AlertDescription>
+                </Alert>
+              )}
 
-        {/* AI Arbitration Info */}
-        <Alert className="mb-6">
-          <Brain className="h-4 w-4" />
-          <AlertDescription>
-            Our AI arbiter will analyze your evidence along with any counterparty submissions to make a fair resolution.
-            Be specific and provide clear documentation of your case.
-          </AlertDescription>
-        </Alert>
+              {submitError && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>{submitError}</AlertDescription>
+                </Alert>
+              )}
 
-        {/* Evidence Type Selection */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Evidence Type</CardTitle>
-            <CardDescription>
-              Choose what type of evidence you want to submit
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <button
-                onClick={() => setEvidenceType('text')}
-                className={`p-4 border rounded-lg text-center transition-colors ${evidenceType === 'text' ? 'border-primary bg-primary/10' : 'border-muted'
-                  }`}
-              >
-                <MessageSquare className="w-8 h-8 mx-auto mb-2" />
-                <h4 className="font-medium">Text Only</h4>
-                <p className="text-xs text-muted-foreground">Written description</p>
-              </button>
-
-              <button
-                onClick={() => setEvidenceType('file')}
-                className={`p-4 border rounded-lg text-center transition-colors ${evidenceType === 'file' ? 'border-primary bg-primary/10' : 'border-muted'
-                  }`}
-              >
-                <Upload className="w-8 h-8 mx-auto mb-2" />
-                <h4 className="font-medium">Files Only</h4>
-                <p className="text-xs text-muted-foreground">Documents, images</p>
-              </button>
-
-              <button
-                onClick={() => setEvidenceType('both')}
-                className={`p-4 border rounded-lg text-center transition-colors ${evidenceType === 'both' ? 'border-primary bg-primary/10' : 'border-muted'
-                  }`}
-              >
-                <FileText className="w-8 h-8 mx-auto mb-2" />
-                <h4 className="font-medium">Text + Files</h4>
-                <p className="text-xs text-muted-foreground">Complete evidence</p>
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Text Evidence */}
-        {(evidenceType === 'text' || evidenceType === 'both') && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Description</CardTitle>
-              <CardDescription>
-                Explain your side of the dispute clearly and provide context
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="evidence-description">Evidence Description *</Label>
-                  <Textarea
-                    id="evidence-description"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Provide a detailed explanation of your case, what went wrong, timeline of events, attempts to resolve the issue, etc..."
-                    rows={6}
-                    className="mt-1"
-                    maxLength={2000}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {description.length}/2000 characters
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* File Evidence */}
-        {(evidenceType === 'file' || evidenceType === 'both') && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>File Evidence</CardTitle>
-              <CardDescription>
-                Upload supporting documents, screenshots, or other evidence
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="evidence-files">Upload Files</Label>
-                  <Input
-                    id="evidence-files"
-                    type="file"
-                    multiple
-                    accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif"
-                    onChange={handleFileUpload}
-                    className="mt-1"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Supported: PDF, DOC, TXT, JPG, PNG, GIF • Max 10MB each
-                  </p>
-                </div>
-
-                {files.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="font-medium">Selected Files:</h4>
-                    {files.map((file, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
-                        <div className="flex items-center gap-2">
-                          <FileText className="w-4 h-4" />
-                          <span className="text-sm">{file.name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            ({(file.size / 1024 / 1024).toFixed(1)} MB)
-                          </span>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => removeFile(index)}
-                        >
-                          Remove
-                        </Button>
-                      </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5" />
+                    Submit New Evidence
+                  </CardTitle>
+                  <CardDescription>
+                    Add more evidence to strengthen your case. You can submit multiple times.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Evidence Type */}
+                  <div className="grid grid-cols-3 gap-3">
+                    {(
+                      [
+                        { key: "text" as const, icon: MessageSquare, label: "Text", desc: "Written statement" },
+                        { key: "file" as const, icon: Upload, label: "Files", desc: "Documents, images" },
+                        { key: "both" as const, icon: FileText, label: "Both", desc: "Text + files" },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.key}
+                        onClick={() => setEvidenceType(opt.key)}
+                        className={`p-3 border rounded-lg text-center transition-colors ${
+                          evidenceType === opt.key ? "border-primary bg-primary/10" : "border-muted"
+                        }`}
+                      >
+                        <opt.icon className="w-6 h-6 mx-auto mb-1" />
+                        <h4 className="font-medium text-sm">{opt.label}</h4>
+                        <p className="text-xs text-muted-foreground">{opt.desc}</p>
+                      </button>
                     ))}
                   </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
-        {/* Submit Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Review & Submit</CardTitle>
-            <CardDescription>
-              Once submitted, your evidence will be analyzed by our AI arbiter
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="bg-muted p-4 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <Info className="w-4 h-4 mt-0.5 text-blue-600" />
-                  <div className="text-sm">
-                    <strong>Next Steps:</strong>
-                    <ul className="list-disc list-inside mt-1 space-y-1 text-muted-foreground">
-                      <li>Your evidence will be submitted to our AI arbitration system</li>
-                      <li>The counterparty will be notified and can submit their evidence</li>
-                      <li>AI arbiter will analyze all evidence and provide a resolution</li>
-                      <li>You'll be notified when the decision is available</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-between">
-                <Button
-                  variant="outline"
-                  onClick={() => navigate(`/deal/${dealId}`)}
-                  disabled={isUploading || isSubmitting}
-                >
-                  Cancel
-                </Button>
-
-                <Button
-                  onClick={handleSubmit}
-                  disabled={
-                    isUploading ||
-                    isSubmitting ||
-                    (!description.trim() && files.length === 0)
-                  }
-                  className="min-w-[120px]"
-                >
-                  {isUploading || isSubmitting ? (
-                    <>
-                      <Loader className="w-4 h-4 mr-2 animate-spin" />
-                      Submitting...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4 mr-2" />
-                      Submit Evidence
-                    </>
+                  {/* Text input */}
+                  {(evidenceType === "text" || evidenceType === "both") && (
+                    <div>
+                      <Label htmlFor="evidence-description">Your Statement</Label>
+                      <Textarea
+                        id="evidence-description"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        placeholder="Provide a detailed explanation of your case, what went wrong, timeline of events..."
+                        rows={5}
+                        className="mt-1"
+                        maxLength={2000}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">{description.length}/2000</p>
+                    </div>
                   )}
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+
+                  {/* File input */}
+                  {(evidenceType === "file" || evidenceType === "both") && (
+                    <div>
+                      <Label htmlFor="evidence-files">Upload Files</Label>
+                      <Input
+                        id="evidence-files"
+                        type="file"
+                        multiple
+                        accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif"
+                        onChange={handleFileUpload}
+                        className="mt-1"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">PDF, DOC, TXT, JPG, PNG, GIF — Max 10MB each</p>
+                      {files.length > 0 && (
+                        <div className="space-y-2 mt-3">
+                          {files.map((file, index) => (
+                            <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
+                              <div className="flex items-center gap-2">
+                                <FileText className="w-4 h-4" />
+                                <span className="text-sm">{file.name}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  ({(file.size / 1024 / 1024).toFixed(1)} MB)
+                                </span>
+                              </div>
+                              <Button size="sm" variant="outline" onClick={() => removeFile(index)}>
+                                Remove
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={handleSubmit}
+                      disabled={isSubmitting || (!description.trim() && files.length === 0)}
+                      className="min-w-[140px]"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader className="w-4 h-4 mr-2 animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 mr-2" />
+                          Submit Evidence
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
+
+          {/* Non-DISPUTED status info */}
+          {deal.status !== "DISPUTED" && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                Evidence submission is {deal.status === "RESOLVED" ? "closed — the AI has already issued a verdict" : `not available in ${deal.status} status`}.
+                {deal.status === "RESOLVED" && (
+                  <Button variant="link" className="p-0 h-auto ml-1" onClick={() => navigate(`/resolution/${dealId}`)}>
+                    View Resolution
+                  </Button>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* AI Arbitration CTA */}
+          {deal.status === "DISPUTED" && isParticipant && (
+            <Card className="border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  <div className="flex items-center gap-3">
+                    <Brain className="w-6 h-6 text-purple-600" />
+                    <div>
+                      <p className="font-semibold">Ready for AI Arbitration?</p>
+                      <p className="text-sm text-muted-foreground">
+                        Once both parties have submitted evidence, request an instant AI verdict (10-30 seconds).
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    className="bg-purple-600 hover:bg-purple-700 shrink-0"
+                    onClick={() => navigate(`/dispute/${dealId}`)}
+                  >
+                    <Brain className="w-4 h-4 mr-2" />
+                    Request AI Verdict
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
-    </div>
+    </PageLayout>
   );
 };
 

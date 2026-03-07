@@ -149,24 +149,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return () => { cancelled = true; controller.abort(); };
     }, [checkSession]);
 
-    // Clear state when wallet disconnects
+    // Clear state when wallet disconnects (but NOT on initial mount before autoConnect)
+    const wasEverConnectedRef = useRef(false);
     useEffect(() => {
-        if (!connected) {
-            setAuthAttempted(false);
-            setIsAuthenticated(false);
-            setUser(null);
-            setError(null);
-
-            fetch(`${API_BASE}/auth/logout`, {
-                method: 'POST',
-                credentials: 'include'
-            }).catch(() => {
-                // Best-effort — local state is already cleared
-            });
+        if (connected) {
+            wasEverConnectedRef.current = true;
+            return;
         }
+        // Only logout if we were previously connected (user intentionally disconnected)
+        if (!wasEverConnectedRef.current) return;
+
+        setAuthAttempted(false);
+        setIsAuthenticated(false);
+        setUser(null);
+        setError(null);
+
+        fetch(`${API_BASE}/auth/logout`, {
+            method: 'POST',
+            credentials: 'include'
+        }).catch(() => {
+            // Best-effort — local state is already cleared
+        });
     }, [connected]);
 
-    const login = useCallback(async () => {
+    const login = useCallback(async (options?: { autoTriggered?: boolean }) => {
         if (!publicKey || !signMessage) return;
 
         setIsLoading(true);
@@ -200,13 +206,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser(parseUserFromResponse(data));
         } catch (err: any) {
             console.error('Login failed:', err);
+            // Don't disconnect the wallet on failure — let the user retry or manually disconnect.
+            // Previously, calling disconnect() here would kill an auto-connected wallet on refresh.
             setError(err.message || 'Authentication failed');
-            disconnect();
             setIsAuthenticated(false);
         } finally {
             setIsLoading(false);
         }
-    }, [publicKey, signMessage, disconnect]);
+    }, [publicKey, signMessage]);
 
     const logout = useCallback(async () => {
         try {
@@ -250,7 +257,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         if (connected && !isAuthenticated && !isLoading && !authAttempted && publicKey && signMessage) {
             setAuthAttempted(true);
-            login();
+            login({ autoTriggered: true });
         }
     }, [connected, isAuthenticated, isLoading, authAttempted, publicKey, signMessage, login]);
 

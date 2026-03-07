@@ -11,7 +11,7 @@ import StepIndicator from "@/components/molecules/StepIndicator";
 import { ArrowRight, ArrowLeft, Shield, Clock, DollarSign, CheckCircle2, Info, AlertTriangle, Loader } from "lucide-react";
 import { useEscrowFlow } from "@/hooks/useEscrowFlow";
 import { useEvent } from "@/hooks/useEvent";
-import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useAction } from "@/hooks/useAction";
 
 /**
@@ -26,8 +26,7 @@ import { useAction } from "@/hooks/useAction";
  * Links: /deal/:deal_id (the actual blockchain deal_id from response)
  */
 
-const Step2: FC = () => {
-  const { connection } = useConnection();
+const Step3: FC = () => {
   const { publicKey } = useWallet();
   const { data, back, next } = useEscrowFlow();
   const { trackEvent } = useEvent();
@@ -72,17 +71,6 @@ const Step2: FC = () => {
     setIsProcessing(true);
 
     try {
-      // Pre-flight: check SOL balance
-      const solBalance = await connection.getBalance(publicKey);
-      const MIN_SOL_LAMPORTS = 5_000_000; // 0.005 SOL
-      if (solBalance < MIN_SOL_LAMPORTS) {
-        throw new Error(
-          `Insufficient SOL balance (${(solBalance / 1e9).toFixed(4)} SOL). ` +
-          `Your wallet needs at least 0.005 SOL for transaction fees. ` +
-          `Airdrop devnet SOL at faucet.solana.com`
-        );
-      }
-
       // Track funding attempt
       trackEvent('fund_attempt', {
         amount: data.amount,
@@ -91,24 +79,18 @@ const Step2: FC = () => {
       });
 
       // Convert dates to timestamps
-      const deliverBy = data.deliveryDeadline ? new Date(data.deliveryDeadline).getTime() / 1000 : undefined;
-      const disputeDeadline = data.completionDeadline ? new Date(data.completionDeadline).getTime() / 1000 : undefined;
+      // completionDeadline = when seller must deliver (mapped to on-chain deliverBy)
+      // disputeDeadline = window after delivery for raising disputes (currently same as delivery deadline)
+      const deliverBy = data.completionDeadline ? Math.floor(new Date(data.completionDeadline).getTime() / 1000) : undefined;
+      const disputeDeadline = data.completionDeadline
+        ? Math.floor(new Date(data.completionDeadline).getTime() / 1000) + 7 * 24 * 60 * 60 // 7-day dispute window after delivery
+        : undefined;
 
-      // Create and initiate the escrow (this includes both creation and funding)
-      // Get user email from profile (should already be set in Step1)
-      // Determine buyer and seller emails based on role
-      // If user is buyer: buyerEmail = user email, sellerEmail = counterparty email
-      // If user is seller: sellerEmail = user email, buyerEmail = counterparty email
-      let buyerEmail: string | undefined;
-      let sellerEmail: string | undefined;
-
-      if (data.role === "buyer") {
-        buyerEmail = data.userEmail || undefined; // User's email from profile
-        sellerEmail = data.counterpartyEmail?.trim() || undefined; // Counterparty email from form
-      } else {
-        sellerEmail = data.userEmail || undefined; // User's email from profile
-        buyerEmail = data.counterpartyEmail?.trim() || undefined; // Counterparty email from form
-      }
+      // useAction "initiate" always treats the caller as the seller (sellerWallet = viewerWallet)
+      // and the counterparty as the buyer (buyerWallet = counterpartyAddress).
+      // Email mappings must follow that convention so the backend sends notification to the right party.
+      const buyerEmail = data.counterpartyEmail?.trim() || undefined; // counterparty is always buyer
+      const sellerEmail = data.userEmail || undefined;                 // initiator is always seller
 
       initiateEscrow({
         counterparty: data.counterpartyAddress,
@@ -120,7 +102,8 @@ const Step2: FC = () => {
         feeBps: 50, // 0.5% fee (50 basis points)
         buyerEmail,
         sellerEmail,
-        metadata: data.isCarSale && data.carMetadata ? data.carMetadata as Record<string, unknown> : undefined,
+        vin: data.vin?.trim() || undefined,
+        contract: data.contract || undefined,
       }, {
         onSuccess: async (result) => {
           // Validate that we have a transaction signature
@@ -199,7 +182,7 @@ const Step2: FC = () => {
       <EscrowStepLayout
         headerTitle="Fund Your Deal"
         headerSubtitle="Review the details and fund your escrow to deploy it on Solana"
-        progress={<StepIndicator current={2} />}
+        progress={<StepIndicator current={3} />}
         footer={
           <div className="flex gap-4 pt-6">
             <Button
@@ -258,10 +241,6 @@ const Step2: FC = () => {
                 </div>
                 <div>
                   <Label className="text-sm font-medium text-muted-foreground">Delivery Deadline</Label>
-                  <p>{formatDate(data.deliveryDeadline)}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Completion Deadline</Label>
                   <p>{formatDate(data.completionDeadline)}</p>
                 </div>
               </div>
@@ -348,13 +327,6 @@ const Step2: FC = () => {
                   <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
                   <div>
                     <p className="font-medium">Delivery Deadline</p>
-                    <p className="text-sm text-muted-foreground">{formatDate(data.deliveryDeadline)}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 bg-orange-600 rounded-full"></div>
-                  <div>
-                    <p className="font-medium">Completion Deadline</p>
                     <p className="text-sm text-muted-foreground">{formatDate(data.completionDeadline)}</p>
                   </div>
                 </div>
@@ -396,4 +368,4 @@ const Step2: FC = () => {
   );
 };
 
-export default Step2;
+export default Step3;

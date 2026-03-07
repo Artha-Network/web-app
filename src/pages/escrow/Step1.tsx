@@ -1,24 +1,20 @@
-import { FC, useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { FC, useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import EscrowFlowTemplate from "@/templates/EscrowFlowTemplate";
 import EscrowStepLayout from "@/components/organisms/EscrowStepLayout";
 import StepIndicator from "@/components/molecules/StepIndicator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, WalletMinimal, AlertTriangle, Info, Mail, Car, Shield } from "lucide-react";
+import { ArrowRight, WalletMinimal, DollarSign, AlertTriangle, Info, User, Mail, Car } from "lucide-react";
 import { useEscrowFlow } from "@/hooks/useEscrowFlow";
 import { useEvent } from "@/hooks/useEvent";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { isValidSolanaAddress } from "@/utils/solana";
 import { API_BASE } from "@/lib/config";
-import { fetchCarEscrowPlan, type CarEscrowPlan } from "@/services/actions";
 
 /**
  * Step1 - Create deal draft (NewDeal.tsx)
@@ -34,7 +30,7 @@ import { fetchCarEscrowPlan, type CarEscrowPlan } from "@/services/actions";
 
 const Step1: FC = () => {
   const { publicKey } = useWallet();
-  const { data, setField, next } = useEscrowFlow();
+  const { data, setField, next, updateData } = useEscrowFlow();
   const { trackEvent, trackDealEvent } = useEvent();
   const navigate = useNavigate();
 
@@ -42,8 +38,6 @@ const Step1: FC = () => {
   const [isValidating, setIsValidating] = useState(false);
   const [userEmail, setUserEmail] = useState<string>("");
   const [userProfile, setUserProfile] = useState<{ emailAddress?: string; displayName?: string } | null>(null);
-  const [carPlan, setCarPlan] = useState<CarEscrowPlan | null>(null);
-  const [isCarPlanLoading, setIsCarPlanLoading] = useState(false);
 
   // Load user email from profile on mount
   useEffect(() => {
@@ -67,10 +61,12 @@ const Step1: FC = () => {
     fetchUserProfile();
   }, [setField]);
 
-  // Track page view on mount
+  // Track page view on mount and clear any stale AI contract from a previous flow
   useEffect(() => {
     trackEvent('deal_draft_started');
-  }, [trackEvent]);
+    // Clear cached contract so Step2 always generates a fresh contract for this deal
+    updateData({ contract: "", questions: [] });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Validation logic
   const validateForm = () => {
@@ -90,6 +86,12 @@ const Step1: FC = () => {
       newErrors.counterpartyAddress = "Cannot create escrow with yourself";
     }
 
+    if (!data.counterpartyEmail?.trim()) {
+      newErrors.counterpartyEmail = "Counterparty email is required for deal notifications";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.counterpartyEmail.trim())) {
+      newErrors.counterpartyEmail = "Please enter a valid email address";
+    }
+
     if (!data.amount || data.amount <= 0) {
       newErrors.amount = "Amount must be greater than 0";
     } else if (data.amount < 10) {
@@ -104,6 +106,10 @@ const Step1: FC = () => {
       newErrors.description = "Description must be at least 10 characters";
     } else if (data.description.length > 1000) {
       newErrors.description = "Description must be less than 1000 characters";
+    }
+
+    if (data.vin && data.vin.trim().length > 0 && data.vin.trim().length !== 17) {
+      newErrors.vin = "VIN must be exactly 17 characters";
     }
 
     if (!data.initiatorDeadline) {
@@ -129,45 +135,9 @@ const Step1: FC = () => {
       }
     }
 
-    // Car sale validation
-    if (data.isCarSale) {
-      const car = data.carMetadata ?? {};
-      if (!car.year || Number(car.year) < 1900 || Number(car.year) > new Date().getFullYear() + 1) {
-        newErrors.carYear = "Valid model year is required";
-      }
-      if (!car.make?.trim()) newErrors.carMake = "Make is required";
-      if (!car.model?.trim()) newErrors.carModel = "Model is required";
-      if (car.vin && car.vin.trim().length !== 17) newErrors.carVin = "VIN must be exactly 17 characters";
-      if (car.odometerMiles === "" || car.odometerMiles === undefined) newErrors.carOdometer = "Odometer reading is required";
-      if (!car.deliveryType) newErrors.carDelivery = "Delivery type is required";
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-
-  const fetchCarPlan = useCallback(async () => {
-    const car = data.carMetadata ?? {};
-    if (!data.isCarSale || !car.deliveryType || !car.year || !car.odometerMiles) return;
-    setIsCarPlanLoading(true);
-    try {
-      const plan = await fetchCarEscrowPlan({
-        priceUsd: typeof data.amount === "number" ? data.amount : 0,
-        deliveryType: car.deliveryType,
-        hasTitleInHand: car.hasTitleInHand ?? true,
-        odometerMiles: typeof car.odometerMiles === "number" ? car.odometerMiles : 0,
-        year: typeof car.year === "number" ? car.year : Number(car.year),
-        isSalvageTitle: car.isSalvageTitle ?? false,
-      });
-      setCarPlan(plan);
-      // Auto-fill deadlines from plan
-      setField("completionDeadline", plan.deliveryDeadlineAtIso.slice(0, 16));
-    } catch {
-      // ignore — non-critical
-    } finally {
-      setIsCarPlanLoading(false);
-    }
-  }, [data.isCarSale, data.carMetadata, data.amount, setField]);
 
   const handleNext = async () => {
     setIsValidating(true);
@@ -319,7 +289,7 @@ const Step1: FC = () => {
 
           <div>
             <Label htmlFor="counterparty-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Counterparty Email (Optional)
+              Counterparty Email *
             </Label>
             <div className="mt-1 relative rounded-md shadow-sm">
               <div className="pointer-events-none absolute inset-y-0 left-0 pl-3 flex items-center">
@@ -347,7 +317,7 @@ const Step1: FC = () => {
               </p>
             )}
             <p className="mt-1 text-xs text-gray-500">
-              Optional: Email address of the counterparty for notifications. Your email ({userEmail}) will be used automatically based on your role.
+              Email address of the counterparty — they will receive a notification about this deal. Your email ({userEmail || "not set"}) is used automatically.
             </p>
           </div>
 
@@ -442,169 +412,38 @@ const Step1: FC = () => {
             </p>
           </div>
 
-          {/* Car Sale Toggle */}
           <div className="md:col-span-2">
-            <div className="flex items-center space-x-2 border rounded-lg p-4 bg-gray-50 dark:bg-gray-900/50">
-              <Checkbox
-                id="is-car-sale"
-                checked={!!data.isCarSale}
-                onCheckedChange={(checked) => {
-                  setField("isCarSale", !!checked);
-                  if (!checked) { setCarPlan(null); setField("carMetadata", {}); }
+            <Label htmlFor="vin" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Vehicle VIN (Optional)
+            </Label>
+            <div className="mt-1 relative rounded-md shadow-sm">
+              <div className="pointer-events-none absolute inset-y-0 left-0 pl-3 flex items-center">
+                <Car className="text-gray-400 w-5 h-5" />
+              </div>
+              <Input
+                id="vin"
+                value={data.vin || ""}
+                onChange={(e) => {
+                  setField("vin", e.target.value.toUpperCase());
+                  if (errors.vin) {
+                    setErrors(prev => ({ ...prev, vin: "" }));
+                  }
                 }}
+                placeholder="e.g., 1HGBH41JXMN109186 (for vehicle deals)"
+                maxLength={17}
+                className="block w-full rounded-md pl-10 sm:text-sm"
               />
-              <div>
-                <Label htmlFor="is-car-sale" className="font-semibold flex items-center gap-1 cursor-pointer">
-                  <Car className="w-4 h-4" />
-                  This is a vehicle sale
-                </Label>
-                <p className="text-xs text-muted-foreground">Enables AI risk scoring and auto-filled deadlines for car escrows</p>
-              </div>
             </div>
+            {errors.vin && (
+              <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                {errors.vin}
+              </p>
+            )}
+            <p className="mt-1 text-xs text-gray-500">
+              For car deals — enables government title transfer tracking
+            </p>
           </div>
-
-          {/* Vehicle Details (only when isCarSale) */}
-          {data.isCarSale && (
-            <>
-              <div className="md:col-span-2">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-base font-semibold flex items-center gap-1">
-                    <Car className="w-4 h-4" />
-                    Vehicle Details
-                  </h3>
-                  <Button type="button" variant="outline" size="sm" onClick={fetchCarPlan} disabled={isCarPlanLoading}>
-                    {isCarPlanLoading ? "Calculating..." : "Calculate Risk Score"}
-                  </Button>
-                </div>
-
-                {/* Risk score badge */}
-                {carPlan && (
-                  <div className="mb-4 p-3 rounded-lg border bg-white dark:bg-gray-900">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Shield className="w-4 h-4" />
-                      <span className="font-medium text-sm">Risk Assessment</span>
-                      <Badge
-                        variant={carPlan.riskLevel === "high" ? "destructive" : "secondary"}
-                        className={
-                          carPlan.riskLevel === "low" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100" :
-                          carPlan.riskLevel === "medium" ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100" : ""
-                        }
-                      >
-                        {carPlan.riskLevel.toUpperCase()} ({carPlan.riskScore}/10)
-                      </Badge>
-                    </div>
-                    <ul className="text-xs text-muted-foreground space-y-0.5 list-disc list-inside">
-                      {carPlan.reasons.map((r, i) => <li key={i}>{r}</li>)}
-                    </ul>
-                    <p className="text-xs text-blue-600 mt-2">
-                      Delivery deadline auto-set to {carPlan.deliveryDeadlineHoursFromNow}h from now.
-                      Dispute window: {carPlan.disputeWindowHours}h.
-                    </p>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="car-year" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Year *</Label>
-                    <Input
-                      id="car-year"
-                      type="number"
-                      min="1900"
-                      max={new Date().getFullYear() + 1}
-                      placeholder="2020"
-                      value={data.carMetadata?.year === "" ? "" : (data.carMetadata?.year ?? "")}
-                      onChange={(e) => setField("carMetadata", { ...data.carMetadata, year: e.target.value ? Number(e.target.value) : "" })}
-                      className={`mt-1 ${errors.carYear ? "border-red-500" : ""}`}
-                    />
-                    {errors.carYear && <p className="mt-1 text-xs text-red-600 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{errors.carYear}</p>}
-                  </div>
-                  <div>
-                    <Label htmlFor="car-make" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Make *</Label>
-                    <Input
-                      id="car-make"
-                      placeholder="Toyota"
-                      value={data.carMetadata?.make ?? ""}
-                      onChange={(e) => setField("carMetadata", { ...data.carMetadata, make: e.target.value })}
-                      className={`mt-1 ${errors.carMake ? "border-red-500" : ""}`}
-                    />
-                    {errors.carMake && <p className="mt-1 text-xs text-red-600 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{errors.carMake}</p>}
-                  </div>
-                  <div>
-                    <Label htmlFor="car-model" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Model *</Label>
-                    <Input
-                      id="car-model"
-                      placeholder="Camry"
-                      value={data.carMetadata?.model ?? ""}
-                      onChange={(e) => setField("carMetadata", { ...data.carMetadata, model: e.target.value })}
-                      className={`mt-1 ${errors.carModel ? "border-red-500" : ""}`}
-                    />
-                    {errors.carModel && <p className="mt-1 text-xs text-red-600 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{errors.carModel}</p>}
-                  </div>
-                  <div>
-                    <Label htmlFor="car-vin" className="block text-sm font-medium text-gray-700 dark:text-gray-300">VIN (optional)</Label>
-                    <Input
-                      id="car-vin"
-                      placeholder="17-character VIN"
-                      maxLength={17}
-                      value={data.carMetadata?.vin ?? ""}
-                      onChange={(e) => setField("carMetadata", { ...data.carMetadata, vin: e.target.value.toUpperCase() })}
-                      className={`mt-1 font-mono ${errors.carVin ? "border-red-500" : ""}`}
-                    />
-                    {errors.carVin && <p className="mt-1 text-xs text-red-600 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{errors.carVin}</p>}
-                  </div>
-                  <div>
-                    <Label htmlFor="car-odometer" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Odometer (miles) *</Label>
-                    <Input
-                      id="car-odometer"
-                      type="number"
-                      min="0"
-                      placeholder="75000"
-                      value={data.carMetadata?.odometerMiles === "" ? "" : (data.carMetadata?.odometerMiles ?? "")}
-                      onChange={(e) => setField("carMetadata", { ...data.carMetadata, odometerMiles: e.target.value ? Number(e.target.value) : "" })}
-                      className={`mt-1 ${errors.carOdometer ? "border-red-500" : ""}`}
-                    />
-                    {errors.carOdometer && <p className="mt-1 text-xs text-red-600 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{errors.carOdometer}</p>}
-                  </div>
-                  <div>
-                    <Label htmlFor="car-delivery" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Delivery Type *</Label>
-                    <Select
-                      value={data.carMetadata?.deliveryType ?? ""}
-                      onValueChange={(v) => setField("carMetadata", { ...data.carMetadata, deliveryType: v as "local_pickup" | "same_city_carrier" | "cross_country_carrier" })}
-                    >
-                      <SelectTrigger className={`mt-1 ${errors.carDelivery ? "border-red-500" : ""}`}>
-                        <SelectValue placeholder="Select..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="local_pickup">Local Pickup (in-person)</SelectItem>
-                        <SelectItem value="same_city_carrier">Same-City Carrier</SelectItem>
-                        <SelectItem value="cross_country_carrier">Cross-Country Carrier</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {errors.carDelivery && <p className="mt-1 text-xs text-red-600 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{errors.carDelivery}</p>}
-                  </div>
-                </div>
-
-                <div className="flex gap-6 mt-4">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="has-title"
-                      checked={data.carMetadata?.hasTitleInHand ?? true}
-                      onCheckedChange={(c) => setField("carMetadata", { ...data.carMetadata, hasTitleInHand: !!c })}
-                    />
-                    <Label htmlFor="has-title" className="text-sm cursor-pointer">Seller has clear title in hand</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="salvage-title"
-                      checked={data.carMetadata?.isSalvageTitle ?? false}
-                      onCheckedChange={(c) => setField("carMetadata", { ...data.carMetadata, isSalvageTitle: !!c })}
-                    />
-                    <Label htmlFor="salvage-title" className="text-sm cursor-pointer">Salvage / rebuilt title</Label>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
 
           <div>
             <Label htmlFor="initiator-deadline" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
