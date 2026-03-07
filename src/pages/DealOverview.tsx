@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
-import { useDeal } from "@/hooks/useDeals";
+import { useDeal, useResolution } from "@/hooks/useDeals";
 import { useAction } from "@/hooks/useAction";
 import { useEvent } from "@/hooks/useEvent";
 import { useQuery } from "@tanstack/react-query";
@@ -29,6 +29,9 @@ import {
   FileText,
   HandshakeIcon,
   BanIcon,
+  Gavel,
+  Brain,
+  Timer,
 } from "lucide-react";
 import { formatDateTime, formatUsd, getExplorerUrl } from "@/utils/format";
 
@@ -86,10 +89,15 @@ const DealOverview: React.FC = () => {
   const fundAction = useAction("fund");
   const releaseAction = useAction("release");
   const refundAction = useAction("refund");
+  const { data: resolution } = useResolution(
+    deal?.status === "RESOLVED" ? dealId : undefined
+  );
 
   const isBuyer = walletAddress && deal?.buyer_wallet?.toLowerCase() === walletAddress.toLowerCase();
   const isSeller = walletAddress && deal?.seller_wallet?.toLowerCase() === walletAddress.toLowerCase();
   const isParticipant = isBuyer || isSeller;
+  const isCreator = walletAddress && deal?.created_by_wallet?.toLowerCase() === walletAddress.toLowerCase();
+  const isCounterparty = isParticipant && !isCreator;
 
   // VIN title status polling (only when deal has a VIN)
   const { data: titleStatus } = useQuery({
@@ -114,8 +122,10 @@ const DealOverview: React.FC = () => {
 
   const canFund = Boolean(dealId) && isBuyer && deal?.status === "INIT";
   // On-chain: release = seller signs (claims funds), refund = buyer signs (claims refund back)
-  const canRelease = Boolean(dealId) && isSeller && deal && ["FUNDED", "RESOLVED"].includes(deal.status);
-  const canRefund = Boolean(dealId) && isBuyer && deal && ["FUNDED", "RESOLVED"].includes(deal.status);
+  // Direct release/refund only from FUNDED (no dispute). DISPUTED deals must go through arbitration first.
+  // After arbitration (RESOLVED), the winning party claims from the Resolution page.
+  const canRelease = Boolean(dealId) && isSeller && deal?.status === "FUNDED";
+  const canRefund = Boolean(dealId) && isBuyer && deal?.status === "FUNDED";
 
   const events = useMemo(() => deal?.onchain_events ?? [], [deal?.onchain_events]);
 
@@ -250,8 +260,8 @@ const DealOverview: React.FC = () => {
           </Alert>
         )}
 
-        {/* Contract Review Card — shown to buyer when deal is INIT (not yet funded) */}
-        {isBuyer && deal?.status === "INIT" && (
+        {/* Contract Review Card — shown to counterparty when deal is INIT */}
+        {isCounterparty && deal?.status === "INIT" && (
           <Card className="border-2 border-primary">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -259,7 +269,8 @@ const DealOverview: React.FC = () => {
                 Contract Review — Action Required
               </CardTitle>
               <CardDescription>
-                You have been invited to participate in this escrow deal. Review the terms below and accept to lock your funds.
+                You have been invited to participate in this escrow deal. Review the terms below.
+                {isBuyer ? " Accept to lock your funds in escrow." : " Once you accept, the buyer will fund the escrow."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -274,11 +285,8 @@ const DealOverview: React.FC = () => {
                     <p className="font-semibold text-lg">{formatUsd(deal?.price_usd)} USDC</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Seller</p>
-                    <p className="font-mono text-sm break-all">{deal?.seller_wallet}</p>
-                    {deal?.seller_profile?.display_name && (
-                      <p className="text-xs text-muted-foreground">{deal.seller_profile.display_name}</p>
-                    )}
+                    <p className="text-sm text-muted-foreground">{isBuyer ? "Seller" : "Buyer"}</p>
+                    <p className="font-mono text-sm break-all">{isBuyer ? deal?.seller_wallet : deal?.buyer_wallet}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Delivery Deadline</p>
@@ -312,7 +320,7 @@ const DealOverview: React.FC = () => {
                 </div>
               )}
 
-              {hasInsufficientUsdc && (
+              {isBuyer && hasInsufficientUsdc && (
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription>
@@ -325,35 +333,44 @@ const DealOverview: React.FC = () => {
                 </Alert>
               )}
 
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  By accepting, <strong>{formatUsd(deal?.price_usd)} USDC</strong> will be transferred from your wallet to the on-chain escrow vault.
-                  Funds are held securely until the deal is completed or resolved through arbitration.
-                  {usdcBalance !== undefined && usdcBalance >= 0 && (
-                    <span className="block mt-1 text-xs">Your USDC balance: <strong>{usdcBalance.toFixed(2)} USDC</strong></span>
-                  )}
-                </AlertDescription>
-              </Alert>
+              {isBuyer && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    By accepting, <strong>{formatUsd(deal?.price_usd)} USDC</strong> will be transferred from your wallet to the on-chain escrow vault.
+                    Funds are held securely until the deal is completed or resolved through arbitration.
+                    {usdcBalance !== undefined && usdcBalance >= 0 && (
+                      <span className="block mt-1 text-xs">Your USDC balance: <strong>{usdcBalance.toFixed(2)} USDC</strong></span>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <div className="flex gap-3 pt-2">
-                <Button
-                  className="flex-1 bg-green-600 hover:bg-green-700"
-                  disabled={fundAction.isPending || hasInsufficientUsdc}
-                  onClick={() => handleAction('fund')}
-                >
-                  {fundAction.isPending ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <HandshakeIcon className="w-4 h-4 mr-2" />
-                      Accept & Fund
-                    </>
-                  )}
-                </Button>
+                {isBuyer ? (
+                  <Button
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                    disabled={fundAction.isPending || hasInsufficientUsdc}
+                    onClick={() => handleAction('fund')}
+                  >
+                    {fundAction.isPending ? (
+                      <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Processing...</>
+                    ) : (
+                      <><HandshakeIcon className="w-4 h-4 mr-2" />Accept & Fund</>
+                    )}
+                  </Button>
+                ) : (
+                  <Button
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                    onClick={() => {
+                      // Seller accepts — no on-chain action needed, just acknowledge
+                      window.alert("Terms accepted! The buyer will now fund the escrow.");
+                    }}
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Accept Terms
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   className="flex-1"
@@ -369,6 +386,49 @@ const DealOverview: React.FC = () => {
                 </Button>
               </div>
             </CardContent>
+          </Card>
+        )}
+
+        {/* Creator waiting card — shown to deal creator when INIT */}
+        {isCreator && deal?.status === "INIT" && (
+          <Card className="border-2 border-muted">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Clock className="w-5 h-5 text-muted-foreground" />
+                {isBuyer ? "Ready to Fund" : "Waiting for Buyer"}
+              </CardTitle>
+              <CardDescription>
+                {isBuyer
+                  ? "You created this deal. You can fund the escrow now or wait for the seller to review the terms."
+                  : "You created this deal. Waiting for the buyer to review the contract and fund the escrow."}
+              </CardDescription>
+            </CardHeader>
+            {isBuyer && (
+              <CardContent className="space-y-4">
+                {hasInsufficientUsdc && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      <p className="font-semibold">Insufficient USDC Balance</p>
+                      <p>
+                        Your wallet has <strong>{usdcBalance?.toFixed(2) ?? "0"} USDC</strong> but this deal requires <strong>{formatUsd(deal?.price_usd)} USDC</strong>.
+                      </p>
+                    </AlertDescription>
+                  </Alert>
+                )}
+                <Button
+                  className="bg-green-600 hover:bg-green-700"
+                  disabled={fundAction.isPending || hasInsufficientUsdc}
+                  onClick={() => handleAction('fund')}
+                >
+                  {fundAction.isPending ? (
+                    <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Processing...</>
+                  ) : (
+                    <><DollarSign className="w-4 h-4 mr-2" />Fund Escrow</>
+                  )}
+                </Button>
+              </CardContent>
+            )}
           </Card>
         )}
 
@@ -521,6 +581,42 @@ const DealOverview: React.FC = () => {
                   </Button>
                 </Link>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Resolution Status — shown when deal is RESOLVED */}
+        {deal?.status === "RESOLVED" && resolution && (
+          <Card className={`border-purple-200 bg-purple-50 dark:bg-purple-950/20 dark:border-purple-800`}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-400">
+                {resolution.escalated_at ? (
+                  <><Gavel className="w-5 h-5" />Escalated to Human Arbitration</>
+                ) : (
+                  <><Brain className="w-5 h-5" />AI Verdict Issued</>
+                )}
+              </CardTitle>
+              <CardDescription>
+                {resolution.escalated_at
+                  ? "The AI verdict was contested. A human arbiter is reviewing the case (24-48 hours)."
+                  : resolution.accepted_at
+                    ? "The losing party accepted the AI verdict. The winning party can now execute the decision."
+                    : `Verdict: ${resolution.outcome}. The losing party has 24 hours to accept or escalate.`}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-3">
+              <Link to={`/resolution/${dealId}`}>
+                <Button size="sm" className="bg-purple-600 hover:bg-purple-700">
+                  <Brain className="w-4 h-4 mr-2" />
+                  View Resolution
+                </Button>
+              </Link>
+              <Link to={`/evidence/${dealId}`}>
+                <Button variant="outline" size="sm">
+                  <FileText className="w-4 h-4 mr-2" />
+                  View Evidence
+                </Button>
+              </Link>
             </CardContent>
           </Card>
         )}

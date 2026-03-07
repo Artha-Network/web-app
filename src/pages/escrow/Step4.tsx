@@ -281,7 +281,7 @@ const Step4: FC = () => {
                 AI Arbitration
               </CardTitle>
               <CardDescription>
-                Gemini-powered dispute resolution system
+                Claude-powered dispute resolution system
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

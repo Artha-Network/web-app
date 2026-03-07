@@ -13,6 +13,7 @@ export interface DealRow {
   price_usd: string;
   buyer_wallet: string | null;
   seller_wallet: string | null;
+  created_by_wallet?: string | null;
   buyer_email?: string | null;
   seller_email?: string | null;
   deliver_deadline: string | null;
@@ -185,6 +186,9 @@ export interface ResolutionData {
   signature: string;
   issued_at: string;
   expires_at: string | null;
+  accepted_at: string | null;
+  escalated_at: string | null;
+  source: 'AI' | 'HUMAN';
 }
 
 async function fetchResolution(dealId: string): Promise<ResolutionData> {

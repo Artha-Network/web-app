@@ -234,13 +234,6 @@ export async function confirm(payload: ConfirmPayload) {
   });
 }
 
-export async function openDispute(dealId: string, callerWallet: string): Promise<ActionResponse> {
-  return request<ActionResponse>("/actions/open-dispute", {
-    dealId,
-    callerWallet,
-  });
-}
-
 export async function submitEvidence(
   dealId: string,
   description: string,
@@ -273,7 +266,6 @@ export const actionsService = {
   refund,
   openDispute,
   confirm,
-  openDispute,
   submitEvidence,
   fetchEvidence,
   triggerArbitration,

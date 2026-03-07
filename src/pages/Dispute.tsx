@@ -187,6 +187,26 @@ const Dispute: React.FC = () => {
           </Card>
         )}
 
+        {/* AI Contract — reference for both parties during dispute */}
+        {deal.contract && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-purple-600" />
+                AI-Generated Contract
+              </CardTitle>
+              <CardDescription>
+                The original terms both parties agreed to. The AI arbiter uses this as the baseline for its verdict.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="bg-muted rounded-lg p-4 max-h-[400px] overflow-y-auto">
+                <pre className="text-sm whitespace-pre-wrap font-sans leading-relaxed">{deal.contract}</pre>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* How Dispute Resolution Works */}
         {deal.status === "FUNDED" && (
           <Alert>
@@ -196,8 +216,8 @@ const Dispute: React.FC = () => {
               <p className="text-sm">
                 Opening a dispute freezes the escrow funds on-chain. Both parties can then submit evidence
                 (text, screenshots, documents). Once evidence is submitted, either party can request an <strong>instant AI verdict</strong> —
-                the AI analyzes all evidence in <strong>10-30 seconds</strong> and issues a binding RELEASE or REFUND decision. There is no waiting
-                period or queue.
+                the AI analyzes all evidence in <strong>10-30 seconds</strong> and issues a RELEASE or REFUND decision. The winning party can
+                execute immediately. The losing party has <strong>24 hours</strong> to accept or escalate to a human arbiter.
               </p>
             </AlertDescription>
           </Alert>
@@ -313,7 +333,7 @@ const Dispute: React.FC = () => {
                   <li>It analyzes the deal terms, deadlines, and claims</li>
                   <li>A verdict is issued in <strong>10-30 seconds</strong> (no waiting period)</li>
                   <li>The verdict is either <strong>RELEASE</strong> (pay seller) or <strong>REFUND</strong> (return to buyer)</li>
-                  <li>The verdict is <strong>final and binding</strong> — the winning party can then execute it on-chain</li>
+                  <li>The winning party can execute immediately — the losing party has <strong>24 hours</strong> to accept or escalate to a human arbiter</li>
                 </ul>
               </div>
 

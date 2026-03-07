@@ -225,6 +225,26 @@ const EvidencePage: FC = () => {
             </Card>
           </div>
 
+          {/* AI Contract — reference while submitting evidence */}
+          {deal.contract && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-purple-600" />
+                  AI-Generated Contract
+                </CardTitle>
+                <CardDescription>
+                  The original terms both parties agreed to. Reference this while writing your evidence.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-muted rounded-lg p-4 max-h-[300px] overflow-y-auto">
+                  <pre className="text-sm whitespace-pre-wrap font-sans leading-relaxed">{deal.contract}</pre>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* All Evidence — visible to both parties */}
           <Card>
             <CardHeader>

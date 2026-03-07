@@ -27,14 +27,29 @@ export function useWalletTransactions() {
       
       // Deserialize the transaction
       let tx = VersionedTransaction.deserialize(decodeBase64(txMessageBase64));
-      
-      // Get a fresh blockhash (critical for localhost where blockhashes expire quickly)
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
-      
-      // Update the transaction with the fresh blockhash
-      tx.message.recentBlockhash = blockhash;
-      
-      // Sign the transaction with the fresh blockhash
+
+      // Check if the transaction already has partial signatures (e.g. arbiter-signed resolve)
+      const hasPartialSignatures = tx.signatures.some(
+        (sig, i) => i > 0 && sig.some(b => b !== 0)
+      );
+
+      let blockhash: string;
+      let lastValidBlockHeight: number;
+
+      if (hasPartialSignatures) {
+        // Don't replace blockhash — it would invalidate existing signatures
+        blockhash = tx.message.recentBlockhash;
+        const bh = await connection.getLatestBlockhash('confirmed');
+        lastValidBlockHeight = bh.lastValidBlockHeight;
+      } else {
+        // Get a fresh blockhash (critical for localhost where blockhashes expire quickly)
+        const bh = await connection.getLatestBlockhash('confirmed');
+        blockhash = bh.blockhash;
+        lastValidBlockHeight = bh.lastValidBlockHeight;
+        tx.message.recentBlockhash = blockhash;
+      }
+
+      // Sign the transaction (wallet adds its signature)
       const signedTx = await signTransaction(tx);
       
       try {

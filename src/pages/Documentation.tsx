@@ -240,8 +240,8 @@ const Documentation = () => {
                     {[
                       { step: "Open Dispute", desc: "Either buyer or seller opens an on-chain dispute. Funds remain frozen in escrow — nobody can withdraw." },
                       { step: "Submit Evidence", desc: "Both parties upload text descriptions, screenshots, documents, or other evidence supporting their case." },
-                      { step: "AI Arbitration", desc: "Our AI arbiter (powered by Google's Gemini) analyzes all evidence and issues a binding verdict: RELEASE (pay seller) or REFUND (return to buyer)." },
-                      { step: "Execute Verdict", desc: "The winning party executes the AI's decision on-chain to receive the funds. The verdict is final." },
+                      { step: "AI Arbitration", desc: "Our AI arbiter (powered by Claude) analyzes all evidence and issues a verdict: RELEASE (pay seller) or REFUND (return to buyer)." },
+                      { step: "Execute Verdict", desc: "The winning party can execute immediately. The losing party has 24 hours to accept or escalate to a human arbiter." },
                     ].map((item, i) => (
                       <div key={i} className="flex gap-3 p-3 rounded-lg bg-muted/50">
                         <div className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center shrink-0 mt-0.5">
@@ -444,7 +444,7 @@ const Documentation = () => {
                     },
                     {
                       q: "How does AI arbitration work?",
-                      a: "When a dispute is opened, both parties submit evidence (text, screenshots, documents). Our AI arbiter (powered by Google Gemini) analyzes all evidence in about 10-30 seconds and issues a verdict: RELEASE (pay the seller) or REFUND (return funds to buyer), along with a confidence score and reasoning.",
+                      a: "When a dispute is opened, both parties submit evidence (text, screenshots, documents). Our AI arbiter (powered by Claude) analyzes all evidence in about 10-30 seconds and issues a verdict: RELEASE (pay the seller) or REFUND (return funds to buyer), along with a confidence score and reasoning. The winning party can execute immediately, while the losing party has 24 hours to accept or escalate to a human arbiter.",
                     },
                     {
                       q: "How long does AI arbitration take?",
