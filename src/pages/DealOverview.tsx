@@ -12,6 +12,7 @@ import { useEvent } from "@/hooks/useEvent";
 import { useQuery } from "@tanstack/react-query";
 import { API_BASE, USDC_MINT } from "@/lib/config";
 import PageLayout from "@/components/layouts/PageLayout";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft,
   ExternalLink,
@@ -179,6 +180,74 @@ const DealOverview: React.FC = () => {
     trackDealEvent('deal_refresh', dealId);
     refetch();
   };
+
+  if (isLoading) {
+    return (
+      <PageLayout>
+        <div className="container mx-auto px-4 py-8 space-y-6">
+          {/* Header skeleton */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Skeleton className="h-9 w-32" />
+              <div>
+                <Skeleton className="h-8 w-64 mb-2" />
+                <Skeleton className="h-4 w-48" />
+              </div>
+            </div>
+            <Skeleton className="h-9 w-24" />
+          </div>
+          {/* Status banner skeleton */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-7 w-20 rounded-full" />
+                  <Skeleton className="h-6 w-24" />
+                </div>
+                <Skeleton className="h-4 w-32" />
+              </div>
+            </CardContent>
+          </Card>
+          {/* Details grid skeleton */}
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader><Skeleton className="h-6 w-32" /></CardHeader>
+              <CardContent className="space-y-4">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-2/3" />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader><Skeleton className="h-6 w-24" /></CardHeader>
+              <CardContent className="space-y-3">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+              </CardContent>
+            </Card>
+          </div>
+          {/* Description skeleton */}
+          <Card>
+            <CardHeader><Skeleton className="h-6 w-28" /></CardHeader>
+            <CardContent>
+              <Skeleton className="h-4 w-full mb-2" />
+              <Skeleton className="h-4 w-4/5" />
+            </CardContent>
+          </Card>
+          {/* Actions skeleton */}
+          <Card>
+            <CardHeader><Skeleton className="h-6 w-20" /></CardHeader>
+            <CardContent className="flex gap-3">
+              <Skeleton className="h-10 w-32" />
+              <Skeleton className="h-10 w-32" />
+            </CardContent>
+          </Card>
+        </div>
+      </PageLayout>
+    );
+  }
 
   if (!isParticipant && deal) {
     return (
@@ -536,6 +605,63 @@ const DealOverview: React.FC = () => {
             </CardHeader>
             <CardContent>
               <p className="text-sm whitespace-pre-wrap">{deal.description}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Vehicle Details (from car metadata) */}
+        {deal?.metadata && (deal.metadata as Record<string, unknown>).year && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Car className="w-5 h-5" />
+                Vehicle Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                {(deal.metadata as Record<string, unknown>).year && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Year / Make / Model</p>
+                    <p className="font-medium">
+                      {(deal.metadata as Record<string, unknown>).year}{" "}
+                      {(deal.metadata as Record<string, unknown>).make}{" "}
+                      {(deal.metadata as Record<string, unknown>).model}
+                    </p>
+                  </div>
+                )}
+                {(deal.metadata as Record<string, unknown>).vin && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">VIN</p>
+                    <p className="font-mono text-sm">{String((deal.metadata as Record<string, unknown>).vin)}</p>
+                  </div>
+                )}
+                {(deal.metadata as Record<string, unknown>).odometerMiles != null && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Odometer</p>
+                    <p className="font-medium">{Number((deal.metadata as Record<string, unknown>).odometerMiles).toLocaleString()} mi</p>
+                  </div>
+                )}
+                {(deal.metadata as Record<string, unknown>).deliveryType && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Delivery Type</p>
+                    <p className="font-medium">
+                      {String((deal.metadata as Record<string, unknown>).deliveryType).replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm text-muted-foreground">Title Status</p>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={(deal.metadata as Record<string, unknown>).hasTitleInHand ? "default" : "outline"}>
+                      {(deal.metadata as Record<string, unknown>).hasTitleInHand ? "Title in hand" : "No title yet"}
+                    </Badge>
+                    {(deal.metadata as Record<string, unknown>).isSalvageTitle && (
+                      <Badge variant="destructive">Salvage</Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         )}

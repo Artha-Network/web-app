@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext"; // Use unified AuthContext
 import { useModalContext } from "@/context/ModalContext";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useMyDeals, useRecentDealEvents, statusToBadge, useDeleteDeal } from "@/hooks/useDeals";
 import { useEvent } from "@/hooks/useEvent";
 import { getConfiguredCluster } from '@/utils/solana';
@@ -160,8 +161,8 @@ const Dashboard: FC = () => {
     }
   };
 
-  const { data: dealsData } = useMyDeals();
-  const { data: eventsData } = useRecentDealEvents(6);
+  const { data: dealsData, isLoading: dealsLoading } = useMyDeals();
+  const { data: eventsData, isLoading: eventsLoading } = useRecentDealEvents(6);
 
   const dealCards: ReadonlyArray<DealCardProps & { id: string }> = useMemo(() => {
     if (!address || !dealsData) return [];
@@ -381,25 +382,81 @@ const Dashboard: FC = () => {
             <h2 className="text-gray-900 text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
               Your Active Deals
             </h2>
-            {dealCards.length === 0 ? (
-              <div className="px-4 py-6 text-sm text-muted-foreground">No deals found for this wallet yet.</div>
+            {dealsLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-4">
+                {[1, 2, 3].map((i) => (
+                  <Card key={i}>
+                    <CardContent className="pt-6 space-y-3">
+                      <Skeleton className="h-5 w-3/4" />
+                      <Skeleton className="h-4 w-1/2" />
+                      <div className="flex justify-between items-center">
+                        <Skeleton className="h-6 w-20 rounded-full" />
+                        <Skeleton className="h-5 w-16" />
+                      </div>
+                      <Skeleton className="h-4 w-2/3" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : dealCards.length === 0 ? (
+              <div className="px-4 py-6 text-center">
+                <p className="text-sm text-muted-foreground">No deals yet. Create your first escrow deal to get started.</p>
+              </div>
             ) : (
               <ActiveDealsGrid deals={dealCards} onDelete={handleDeleteDeal} />
             )}
           </div>
 
           <aside className="layout-content-container flex flex-col w-[360px] gap-4">
-            <ReputationScoreCard score={authUser?.reputationScore ?? 0} />
+            {isAuthLoading ? (
+              <Card className="mx-4">
+                <CardContent className="pt-6 space-y-3">
+                  <Skeleton className="h-6 w-32" />
+                  <Skeleton className="h-16 w-16 rounded-full mx-auto" />
+                  <Skeleton className="h-4 w-24 mx-auto" />
+                </CardContent>
+              </Card>
+            ) : (
+              <ReputationScoreCard score={authUser?.reputationScore ?? 0} />
+            )}
 
             <h2 className="text-gray-900 text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
               Notifications
             </h2>
-            <NotificationsList items={notifications} />
+            {eventsLoading ? (
+              <div className="px-4 space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <Skeleton className="h-7 w-7 rounded-full shrink-0" />
+                    <div className="flex-1 space-y-1">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-3 w-20" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <NotificationsList items={notifications} />
+            )}
 
             <h2 className="text-gray-900 text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
               Recent Activity
             </h2>
-            <RecentActivityTimeline items={recentActivities} />
+            {eventsLoading ? (
+              <div className="px-4 space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <Skeleton className="h-5 w-5 rounded-full shrink-0" />
+                    <div className="flex-1 space-y-1">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <RecentActivityTimeline items={recentActivities} />
+            )}
           </aside>
         </main>
       </div>
