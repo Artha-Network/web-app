@@ -88,8 +88,8 @@ const DealOverview: React.FC = () => {
   const { data: deal, isLoading, refetch } = useDeal(dealId);
   const [actionError, setActionError] = useState<string | null>(null);
   const fundAction = useAction("fund");
-  const releaseAction = useAction("release");
-  const refundAction = useAction("refund");
+  const confirmDeliveryAction = useAction("confirmDelivery");
+  const approveRefundAction = useAction("approveRefund");
   const { data: resolution } = useResolution(
     deal?.status === "RESOLVED" ? dealId : undefined
   );
@@ -123,12 +123,11 @@ const DealOverview: React.FC = () => {
 
   const canFund = Boolean(dealId) && isBuyer && deal?.status === "INIT";
   // Escrow authorization: the OTHER party must authorize fund movement.
-  // Release (funds → seller) requires BUYER approval (buyer confirms goods received).
-  // Refund (funds → buyer) requires SELLER approval (seller agrees to cancel/refund).
-  // Direct release/refund only from FUNDED (no dispute). DISPUTED deals must go through arbitration first.
-  // After arbitration (RESOLVED), the winning party claims from the Resolution page.
-  const canRelease = Boolean(dealId) && isBuyer && deal?.status === "FUNDED";
-  const canRefund = Boolean(dealId) && isSeller && deal?.status === "FUNDED";
+  // Buyer confirms delivery → server-side resolve(VERDICT_RELEASE) → seller claims from Resolution page.
+  // Seller approves refund → server-side resolve(VERDICT_REFUND) → buyer claims from Resolution page.
+  // DISPUTED deals must go through arbitration first. RESOLVED deals are handled on the Resolution page.
+  const canConfirmDelivery = Boolean(dealId) && isBuyer && deal?.status === "FUNDED";
+  const canApproveRefund = Boolean(dealId) && isSeller && deal?.status === "FUNDED";
 
   const events = useMemo(() => deal?.onchain_events ?? [], [deal?.onchain_events]);
 
@@ -152,7 +151,7 @@ const DealOverview: React.FC = () => {
     if (dealId) trackEvent('view_deal', { deal_id: dealId });
   }, [dealId, trackEvent]);
 
-  const handleAction = async (actionType: 'fund' | 'release' | 'refund') => {
+  const handleAction = async (actionType: 'fund' | 'confirmDelivery' | 'approveRefund') => {
     if (!dealId) return;
     setActionError(null);
     trackAction(actionType, dealId);
@@ -162,19 +161,19 @@ const DealOverview: React.FC = () => {
           await fundAction.mutateAsync({ dealId });
           trackDealEvent('fund_success', dealId);
           break;
-        case 'release':
-          await releaseAction.mutateAsync({ dealId });
-          trackDealEvent('payout_success', dealId, { payout_type: 'release' });
+        case 'confirmDelivery':
+          await confirmDeliveryAction.mutateAsync({ dealId });
+          trackDealEvent('confirm_delivery_success', dealId);
           break;
-        case 'refund':
-          await refundAction.mutateAsync({ dealId });
-          trackDealEvent('payout_success', dealId, { payout_type: 'refund' });
+        case 'approveRefund':
+          await approveRefundAction.mutateAsync({ dealId });
+          trackDealEvent('approve_refund_success', dealId);
           break;
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Action failed';
       setActionError(msg);
-      trackDealEvent('fund_failed', dealId, { error: msg, action_type: actionType });
+      trackDealEvent('action_failed', dealId, { error: msg, action_type: actionType });
     }
   };
 
@@ -320,10 +319,10 @@ const DealOverview: React.FC = () => {
                   <Button
                     size="sm"
                     className="bg-green-600 hover:bg-green-700 ml-4"
-                    onClick={() => handleAction('release')}
-                    disabled={releaseAction.isPending}
+                    onClick={() => handleAction('confirmDelivery')}
+                    disabled={confirmDeliveryAction.isPending}
                   >
-                    Release Funds
+                    Confirm Delivery & Release
                   </Button>
                 )}
               </div>
@@ -823,22 +822,31 @@ const DealOverview: React.FC = () => {
           </CardHeader>
           <CardContent className="flex flex-wrap gap-3">
             {/* Fund button hidden here when Contract Review card is shown above */}
-            {canRelease && (
+            {canConfirmDelivery && (
               <Button
                 className="bg-green-600 hover:bg-green-700"
-                disabled={releaseAction.isPending}
-                onClick={() => handleAction('release')}
+                disabled={confirmDeliveryAction.isPending}
+                onClick={() => {
+                  if (window.confirm("Are you sure you want to confirm delivery? This will authorize the release of funds to the seller. This action cannot be undone.")) {
+                    handleAction('confirmDelivery');
+                  }
+                }}
               >
-                {releaseAction.isPending ? "Processing..." : "Release Funds to Seller"}
+                <CheckCircle className="w-4 h-4 mr-2" />
+                {confirmDeliveryAction.isPending ? "Processing..." : "Confirm Delivery & Release"}
               </Button>
             )}
-            {canRefund && (
+            {canApproveRefund && (
               <Button
                 variant="secondary"
-                disabled={refundAction.isPending}
-                onClick={() => handleAction('refund')}
+                disabled={approveRefundAction.isPending}
+                onClick={() => {
+                  if (window.confirm("Are you sure you want to approve a refund? This will authorize the return of funds to the buyer. This action cannot be undone.")) {
+                    handleAction('approveRefund');
+                  }
+                }}
               >
-                {refundAction.isPending ? "Processing..." : "Approve Refund"}
+                {approveRefundAction.isPending ? "Processing..." : "Cancel & Approve Refund"}
               </Button>
             )}
             {deal?.status === "FUNDED" && isParticipant && (
@@ -867,7 +875,7 @@ const DealOverview: React.FC = () => {
                 <Button variant="outline">Manage Evidence</Button>
               </Link>
             )}
-            {!canFund && !canRelease && !canRefund && deal?.status !== "FUNDED" && deal?.status !== "RESOLVED" && deal?.status !== "DISPUTED" && (
+            {!canFund && !canConfirmDelivery && !canApproveRefund && deal?.status !== "FUNDED" && deal?.status !== "RESOLVED" && deal?.status !== "DISPUTED" && (
               <p className="text-sm text-muted-foreground py-2">No actions available for the current deal status.</p>
             )}
           </CardContent>

@@ -63,6 +63,7 @@ const ResolutionPage: FC = () => {
   const source = resolution?.source ?? 'AI';
 
   const isHumanVerdict = source === 'HUMAN';
+  const isVoluntary = source === 'BUYER_CONFIRMED' || source === 'SELLER_VOLUNTARY';
   const isLosingParty =
     (decision === 'RELEASE' && isBuyer) ||
     (decision === 'REFUND' && isSeller);
@@ -71,8 +72,9 @@ const ResolutionPage: FC = () => {
     (decision === 'REFUND' && isBuyer);
 
   // Winning party can always execute immediately. Losing party must wait for acceptance/expiry.
+  // Voluntary resolutions (confirm delivery / approve refund) have acceptedAt pre-set, so they're always finalized.
   const windowExpired = expiresAt ? new Date() > new Date(expiresAt) : false;
-  const verdictFinalized = isHumanVerdict || !!acceptedAt || windowExpired;
+  const verdictFinalized = isHumanVerdict || isVoluntary || !!acceptedAt || windowExpired;
   const canExecute = !escalatedAt && (isWinningParty || verdictFinalized);
 
   // Countdown timer
@@ -243,7 +245,10 @@ const ResolutionPage: FC = () => {
             <ArrowLeft className="w-4 h-4 mr-2" />Back to Deal
           </Button>
           <h1 className="text-3xl font-bold mb-2">
-            {isHumanVerdict ? 'Human Arbitration Resolution' : 'AI Arbitration Resolution'}
+            {source === 'BUYER_CONFIRMED' ? 'Buyer Confirmed Delivery'
+              : source === 'SELLER_VOLUNTARY' ? 'Seller Approved Refund'
+              : isHumanVerdict ? 'Human Arbitration Resolution'
+              : 'AI Arbitration Resolution'}
           </h1>
           <p className="text-muted-foreground">
             {deal.title ? `"${deal.title}"` : `Deal ${dealId?.slice(0, 8)}...`}

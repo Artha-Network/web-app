@@ -5,7 +5,7 @@ import { toast } from "@/components/ui/sonner";
 import { useWalletTransactions } from "./useWalletTransactions";
 import actionsService from "@/services/actions";
 
-type ActionKey = "initiate" | "fund" | "release" | "refund" | "openDispute";
+type ActionKey = "initiate" | "fund" | "release" | "refund" | "openDispute" | "confirmDelivery" | "approveRefund";
 
 interface InitiateVariables {
   counterparty: string;
@@ -29,6 +29,8 @@ interface ActionVariablesMap {
   release: { dealId: string };
   refund: { dealId: string };
   openDispute: { dealId: string };
+  confirmDelivery: { dealId: string };
+  approveRefund: { dealId: string };
 }
 
 type MutationVariables<T extends ActionKey> = ActionVariablesMap[T];
@@ -42,6 +44,47 @@ export function useAction<T extends ActionKey>(action: T) {
   const mutationFn = useCallback(
     async (variables: MutationVariables<T>) => {
       if (!viewerWallet) throw new Error("Connect wallet first");
+
+      // Server-side actions (no wallet signing needed)
+      if (action === "confirmDelivery") {
+        const { dealId: id } = variables as { dealId: string };
+        const pendingId = toast.loading("Confirming delivery…");
+        try {
+          await actionsService.confirmDelivery(id, viewerWallet);
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["my-deals"] }),
+            queryClient.invalidateQueries({ queryKey: ["deal", id] }),
+            queryClient.invalidateQueries({ queryKey: ["deal-events"] }),
+            queryClient.refetchQueries({ queryKey: ["deal", id] }),
+          ]);
+          toast.success("Delivery confirmed — seller can now claim funds", { id: pendingId });
+          return { dealId: id, txSig: "" };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Action failed";
+          toast.error(message, { id: pendingId });
+          throw error;
+        }
+      }
+
+      if (action === "approveRefund") {
+        const { dealId: id } = variables as { dealId: string };
+        const pendingId = toast.loading("Approving refund…");
+        try {
+          await actionsService.approveRefund(id, viewerWallet);
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["my-deals"] }),
+            queryClient.invalidateQueries({ queryKey: ["deal", id] }),
+            queryClient.invalidateQueries({ queryKey: ["deal-events"] }),
+            queryClient.refetchQueries({ queryKey: ["deal", id] }),
+          ]);
+          toast.success("Refund approved — buyer can now claim their funds", { id: pendingId });
+          return { dealId: id, txSig: "" };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Action failed";
+          toast.error(message, { id: pendingId });
+          throw error;
+        }
+      }
 
       let response: Awaited<ReturnType<typeof actionsService.initiate>>;
       let dealId: string;

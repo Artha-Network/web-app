@@ -217,13 +217,26 @@ export async function openDispute(dealId: string, callerWallet: string): Promise
   });
 }
 
+export async function confirmDelivery(dealId: string, buyerWallet: string) {
+  return request("/actions/confirm-delivery", { dealId, buyerWallet });
+}
+
+export async function approveRefund(dealId: string, sellerWallet: string) {
+  return request("/actions/approve-refund", { dealId, sellerWallet });
+}
+
 export async function confirm(payload: ConfirmPayload) {
   let actorWallet = payload.actorWallet;
   if (!actorWallet) {
     const deal = await fetchDealRow(payload.dealId);
-    // FUND = buyer, RELEASE = seller (claim), REFUND = buyer (claim)
-    actorWallet =
-      payload.action === "RELEASE" ? deal.seller_wallet ?? undefined : deal.buyer_wallet ?? undefined;
+    // FUND = buyer, RELEASE = seller (seller claims), REFUND = buyer (buyer claims)
+    if (payload.action === "RELEASE") {
+      actorWallet = deal.seller_wallet ?? undefined;
+    } else if (payload.action === "REFUND") {
+      actorWallet = deal.buyer_wallet ?? undefined;
+    } else {
+      actorWallet = deal.buyer_wallet ?? undefined;
+    }
   }
   if (!actorWallet) throw new Error("Unable to resolve actor wallet");
   return request("/actions/confirm", {
@@ -265,6 +278,8 @@ export const actionsService = {
   release,
   refund,
   openDispute,
+  confirmDelivery,
+  approveRefund,
   confirm,
   submitEvidence,
   fetchEvidence,

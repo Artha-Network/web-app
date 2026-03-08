@@ -188,7 +188,7 @@ export interface ResolutionData {
   expires_at: string | null;
   accepted_at: string | null;
   escalated_at: string | null;
-  source: 'AI' | 'HUMAN';
+  source: 'AI' | 'HUMAN' | 'BUYER_CONFIRMED' | 'SELLER_VOLUNTARY';
 }
 
 async function fetchResolution(dealId: string): Promise<ResolutionData> {
