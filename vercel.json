@@ -1,6 +1,11 @@
 {
   "version": 2,
   "rewrites": [
+    { "source": "/api/:path*", "destination": "https://actions-server.vercel.app/api/:path*" },
+    { "source": "/auth/:path*", "destination": "https://actions-server.vercel.app/auth/:path*" },
+    { "source": "/actions/:path*", "destination": "https://actions-server.vercel.app/actions/:path*" },
+    { "source": "/gov/:path*", "destination": "https://actions-server.vercel.app/gov/:path*" },
+    { "source": "/health", "destination": "https://actions-server.vercel.app/health" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

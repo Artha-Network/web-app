@@ -3,7 +3,10 @@
  * Centralizes all environment-specific values.
  */
 
-export const API_BASE = (import.meta.env.VITE_ACTIONS_SERVER_URL || "http://localhost:4000").replace(/\/+$/, "");
+// In production: empty string = same-origin (Vercel rewrites proxy to actions-server)
+// In development: fall back to localhost:4000 for direct backend access
+const _apiUrl = import.meta.env.VITE_ACTIONS_SERVER_URL;
+export const API_BASE = (_apiUrl != null && _apiUrl !== "" ? _apiUrl : (import.meta.env.DEV ? "http://localhost:4000" : "")).replace(/\/+$/, "");
 export const SOLANA_RPC = import.meta.env.VITE_SOLANA_RPC || "https://api.devnet.solana.com";
 
 // USDC Mint Address (Devnet default if not specified)
