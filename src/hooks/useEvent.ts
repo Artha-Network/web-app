@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { API_BASE } from '../lib/config';
 
 // Frontend analytics event structure
 export interface FrontendAnalyticsEvent {
@@ -112,8 +113,7 @@ export function useEvent() {
         };
 
         // Fire-and-forget to analytics endpoint
-        const ACTIONS_BASE_URL = import.meta.env.VITE_ACTIONS_SERVER_URL || 'http://localhost:4000';
-        fetch(`${ACTIONS_BASE_URL}/api/events`, {
+        fetch(`${API_BASE}/api/events`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

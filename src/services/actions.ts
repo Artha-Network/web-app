@@ -103,7 +103,7 @@ export interface ResolutionResponse {
 }
 
 const jsonHeaders = { "Content-Type": "application/json" };
-const ACTIONS_BASE_URL = import.meta.env.VITE_ACTIONS_SERVER_URL || 'http://localhost:4000';
+import { API_BASE as ACTIONS_BASE_URL } from '../lib/config';
 
 async function request<T>(path: string, body: Record<string, unknown>): Promise<T> {
   const url = `${ACTIONS_BASE_URL}${path}`;

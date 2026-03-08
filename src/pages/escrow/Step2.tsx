@@ -1,4 +1,5 @@
 import { FC, useEffect, useState } from "react";
+import { API_BASE } from "@/lib/config";
 import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,7 +24,7 @@ const Step2: FC = () => {
         setError(null);
         updateData({ contract: "", questions: [] });
         try {
-            const response = await fetch(`${import.meta.env.VITE_ACTIONS_SERVER_URL || import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/ai/generate-contract`, {
+            const response = await fetch(`${API_BASE}/api/ai/generate-contract`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     signal: AbortSignal.timeout(65_000),

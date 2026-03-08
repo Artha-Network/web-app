@@ -75,7 +75,7 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ open, on
       const address = publicKey.toBase58();
       const network = getConfiguredCluster();
       try {
-        const baseUrl = import.meta.env.VITE_ACTIONS_SERVER_URL || "http://localhost:4000";
+        const { API_BASE: baseUrl } = await import("../../lib/config");
         const res = await fetch(`${baseUrl}/auth/upsert-wallet`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
