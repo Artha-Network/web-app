@@ -20,6 +20,7 @@ interface InitiateVariables {
   role?: "buyer" | "seller";
   vin?: string;
   contract?: string;
+  metadata?: Record<string, unknown>;
 }
 
 interface ActionVariablesMap {
@@ -71,6 +72,7 @@ export function useAction<T extends ActionKey>(action: T) {
             vin: payload.vin,
             contract: payload.contract,
             payer: viewerWallet,
+            metadata: payload.metadata,
           });
           actionVerb = "INITIATE";
           dealId = response.dealId;

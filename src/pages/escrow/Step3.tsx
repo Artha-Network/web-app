@@ -104,6 +104,16 @@ const Step3: FC = () => {
         sellerEmail,
         vin: data.vin?.trim() || undefined,
         contract: data.contract || undefined,
+        metadata: data.isCarSale ? {
+          year: data.carMetadata?.year,
+          make: data.carMetadata?.make,
+          model: data.carMetadata?.model,
+          vin: data.vin,
+          odometerMiles: data.carMetadata?.odometerMiles,
+          deliveryType: data.carMetadata?.deliveryType,
+          hasTitleInHand: data.carMetadata?.hasTitleInHand,
+          isSalvageTitle: data.carMetadata?.isSalvageTitle,
+        } : undefined,
       }, {
         onSuccess: async (result) => {
           // Validate that we have a transaction signature

@@ -18,6 +18,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useDeal, useResolution } from "@/hooks/useDeals";
 import { useAction } from "@/hooks/useAction";
 import PageLayout from "@/components/layouts/PageLayout";
+import { Skeleton } from "@/components/ui/skeleton";
 import { API_BASE } from "@/lib/config";
 import { formatDateTime, formatUsd } from "@/utils/format";
 
@@ -78,9 +79,27 @@ const Dispute: React.FC = () => {
   if (dealLoading) {
     return (
       <PageLayout>
-        <div className="container mx-auto px-4 py-8 text-center">
-          <Loader className="w-12 h-12 mx-auto text-muted-foreground mb-4 animate-spin" />
-          <h2 className="text-xl font-semibold">Loading Deal...</h2>
+        <div className="container mx-auto px-4 py-8 space-y-6 max-w-3xl">
+          <div>
+            <Skeleton className="h-9 w-32 mb-4" />
+            <Skeleton className="h-8 w-56 mb-2" />
+            <Skeleton className="h-4 w-40" />
+          </div>
+          <Card>
+            <CardHeader><Skeleton className="h-6 w-32" /></CardHeader>
+            <CardContent className="grid grid-cols-2 gap-4">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><Skeleton className="h-6 w-48" /></CardHeader>
+            <CardContent>
+              <Skeleton className="h-10 w-40" />
+            </CardContent>
+          </Card>
         </div>
       </PageLayout>
     );
