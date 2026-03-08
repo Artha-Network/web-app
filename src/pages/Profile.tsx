@@ -26,7 +26,7 @@ interface UserProfile {
 
 const Profile: React.FC = () => {
   const { publicKey } = useWallet();
-  const { refreshUser, user: authUser } = useAuth();
+  const { refreshUser, user: authUser, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -35,39 +35,58 @@ const Profile: React.FC = () => {
   const [emailAddress, setEmailAddress] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  
+
   // Check if profile setup is required (first-time user)
   const requireSetup = (location.state as any)?.requireSetup || false;
-  const isProfileIncomplete = !profile?.displayName || !profile?.emailAddress;
+  // Use both profile (from API) and authUser (from session) to determine completeness
+  const currentDisplayName = profile?.displayName ?? authUser?.displayName ?? authUser?.name ?? null;
+  const currentEmail = profile?.emailAddress ?? authUser?.emailAddress ?? null;
+  const isProfileIncomplete = !currentDisplayName || !currentEmail;
 
+  // Sync form fields from authUser when it becomes available
   useEffect(() => {
-    fetchProfile();
-  }, [publicKey]);
+    if (authUser && !profile) {
+      setDisplayName(prev => prev || authUser.displayName || authUser.name || "");
+      setEmailAddress(prev => prev || authUser.emailAddress || "");
+    }
+  }, [authUser, profile]);
 
-  const fetchProfile = async () => {
-    if (!publicKey) return;
-
-    setIsLoading(true);
-    try {
-      const response = await fetch(`${API_BASE}/api/users/me`, {
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch profile');
+  // Fetch full profile from API — retrigger on publicKey or auth state change
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!publicKey) {
+        // No wallet — stop loading so UI renders (authUser fallback will fill fields)
+        setIsLoading(false);
+        return;
       }
 
-      const data = await response.json() as UserProfile;
-      setProfile(data);
-      setDisplayName(data.displayName || "");
-      setEmailAddress(data.emailAddress || "");
-    } catch (error) {
-      console.error('Failed to fetch profile:', error);
-      toast.error('Failed to load profile');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      setIsLoading(true);
+      try {
+        const response = await fetch(`${API_BASE}/api/users/me`, {
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch profile');
+        }
+
+        const data = await response.json() as UserProfile;
+        setProfile(data);
+        setDisplayName(data.displayName || "");
+        setEmailAddress(data.emailAddress || "");
+      } catch (error) {
+        console.error('Failed to fetch profile:', error);
+        // Don't toast if authUser has data — fields will still be populated
+        if (!authUser?.displayName && !authUser?.emailAddress) {
+          toast.error('Failed to load profile');
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [publicKey, isAuthenticated]);
 
   const handleSaveDisplayName = async () => {
     if (!publicKey) return;
@@ -239,7 +258,7 @@ const Profile: React.FC = () => {
 
           <Button
             onClick={handleSaveDisplayName}
-            disabled={isSaving || (displayName === (profile?.displayName || "") && emailAddress === (profile?.emailAddress || ""))}
+            disabled={isSaving || (displayName === (currentDisplayName || "") && emailAddress === (currentEmail || ""))}
             className="w-full sm:w-auto"
           >
             {isSaving ? (
@@ -270,30 +289,32 @@ const Profile: React.FC = () => {
           <CardDescription>Your reputation score and account statistics.</CardDescription>
       </CardHeader>
         <CardContent className="space-y-4">
-          {profile && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label className="text-muted-foreground">Reputation Score</Label>
-                <p className="text-2xl font-bold">{profile.reputationScore}</p>
+                <p className="text-2xl font-bold">{profile?.reputationScore ?? authUser?.reputationScore ?? 0}</p>
               </div>
               <div>
                 <Label className="text-muted-foreground">KYC Level</Label>
-                <p className="text-2xl font-bold">{profile.kycLevel}</p>
+                <p className="text-2xl font-bold">{profile?.kycLevel ?? 0}</p>
               </div>
+              {profile?.createdAt && (
               <div>
                 <Label className="text-muted-foreground">Member Since</Label>
                 <p className="text-sm">
                   {new Date(profile.createdAt).toLocaleDateString()}
                 </p>
               </div>
+              )}
+              {profile?.updatedAt && (
               <div>
                 <Label className="text-muted-foreground">Last Updated</Label>
                 <p className="text-sm">
                   {new Date(profile.updatedAt).toLocaleDateString()}
                 </p>
               </div>
+              )}
             </div>
-          )}
 
           <div className="flex gap-3 pt-4">
         <Button asChild>

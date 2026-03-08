@@ -17,6 +17,7 @@ import { useEscrowFlow } from "@/hooks/useEscrowFlow";
 import type { CarMetadata } from "@/hooks/useEscrowFlow";
 import { useEvent } from "@/hooks/useEvent";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { useAuth } from "@/context/AuthContext";
 import { isValidSolanaAddress } from "@/utils/solana";
 import { API_BASE } from "@/lib/config";
 import { fetchCarEscrowPlan } from "@/services/actions";
@@ -36,6 +37,7 @@ import type { CarEscrowPlan } from "@/services/actions";
 
 const Step1: FC = () => {
   const { publicKey } = useWallet();
+  const { user: authUser } = useAuth();
   const { data, setField, next, updateData } = useEscrowFlow();
   const { trackEvent, trackDealEvent } = useEvent();
   const navigate = useNavigate();
@@ -96,7 +98,7 @@ const Step1: FC = () => {
     };
   }, [data.isCarSale, data.carMetadata?.year, data.carMetadata?.deliveryType, data.carMetadata?.odometerMiles, data.carMetadata?.hasTitleInHand, data.carMetadata?.isSalvageTitle, data.amount]);
 
-  // Load user email from profile on mount
+  // Load user email from profile on mount, with authUser fallback
   useEffect(() => {
     const fetchUserProfile = async () => {
       try {
@@ -109,14 +111,21 @@ const Step1: FC = () => {
           if (profile.emailAddress) {
             setUserEmail(profile.emailAddress);
             setField("userEmail", profile.emailAddress);
+            return;
           }
         }
       } catch (error) {
         console.error('Failed to fetch user profile:', error);
       }
+      // Fallback: use authUser data from AuthContext
+      if (authUser?.emailAddress) {
+        setUserEmail(authUser.emailAddress);
+        setField("userEmail", authUser.emailAddress);
+        setUserProfile({ emailAddress: authUser.emailAddress, displayName: authUser.displayName || authUser.name });
+      }
     };
     fetchUserProfile();
-  }, [setField]);
+  }, [setField, authUser]);
 
   // Track page view on mount and clear any stale AI contract from a previous flow
   useEffect(() => {
