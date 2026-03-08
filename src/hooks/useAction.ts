@@ -45,51 +45,10 @@ export function useAction<T extends ActionKey>(action: T) {
     async (variables: MutationVariables<T>) => {
       if (!viewerWallet) throw new Error("Connect wallet first");
 
-      // Server-side actions (no wallet signing needed)
-      if (action === "confirmDelivery") {
-        const { dealId: id } = variables as { dealId: string };
-        const pendingId = toast.loading("Confirming delivery…");
-        try {
-          await actionsService.confirmDelivery(id, viewerWallet);
-          await Promise.all([
-            queryClient.invalidateQueries({ queryKey: ["my-deals"] }),
-            queryClient.invalidateQueries({ queryKey: ["deal", id] }),
-            queryClient.invalidateQueries({ queryKey: ["deal-events"] }),
-            queryClient.refetchQueries({ queryKey: ["deal", id] }),
-          ]);
-          toast.success("Delivery confirmed — seller can now claim funds", { id: pendingId });
-          return { dealId: id, txSig: "" };
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Action failed";
-          toast.error(message, { id: pendingId });
-          throw error;
-        }
-      }
-
-      if (action === "approveRefund") {
-        const { dealId: id } = variables as { dealId: string };
-        const pendingId = toast.loading("Approving refund…");
-        try {
-          await actionsService.approveRefund(id, viewerWallet);
-          await Promise.all([
-            queryClient.invalidateQueries({ queryKey: ["my-deals"] }),
-            queryClient.invalidateQueries({ queryKey: ["deal", id] }),
-            queryClient.invalidateQueries({ queryKey: ["deal-events"] }),
-            queryClient.refetchQueries({ queryKey: ["deal", id] }),
-          ]);
-          toast.success("Refund approved — buyer can now claim their funds", { id: pendingId });
-          return { dealId: id, txSig: "" };
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Action failed";
-          toast.error(message, { id: pendingId });
-          throw error;
-        }
-      }
-
       let response: Awaited<ReturnType<typeof actionsService.initiate>>;
       let dealId: string;
       let actorWallet = viewerWallet;
-      let actionVerb: "INITIATE" | "FUND" | "RELEASE" | "REFUND" | "OPEN_DISPUTE";
+      let actionVerb: "INITIATE" | "FUND" | "RELEASE" | "REFUND" | "OPEN_DISPUTE" | "CONFIRM_DELIVERY" | "APPROVE_REFUND";
 
       switch (action) {
         case "initiate": {
@@ -150,6 +109,22 @@ export function useAction<T extends ActionKey>(action: T) {
           const { dealId: id } = variables as { dealId: string };
           response = await actionsService.openDispute(id, viewerWallet);
           actionVerb = "OPEN_DISPUTE";
+          dealId = response.dealId;
+          actorWallet = viewerWallet;
+          break;
+        }
+        case "confirmDelivery": {
+          const { dealId: id } = variables as { dealId: string };
+          response = await actionsService.confirmDelivery(id, viewerWallet);
+          actionVerb = "CONFIRM_DELIVERY";
+          dealId = response.dealId;
+          actorWallet = viewerWallet;
+          break;
+        }
+        case "approveRefund": {
+          const { dealId: id } = variables as { dealId: string };
+          response = await actionsService.approveRefund(id, viewerWallet);
+          actionVerb = "APPROVE_REFUND";
           dealId = response.dealId;
           actorWallet = viewerWallet;
           break;

@@ -1,6 +1,6 @@
 import supabase from "@/lib/supabaseClient";
 
-type ActionName = "INITIATE" | "FUND" | "RELEASE" | "REFUND" | "OPEN_DISPUTE";
+type ActionName = "INITIATE" | "FUND" | "RELEASE" | "REFUND" | "OPEN_DISPUTE" | "CONFIRM_DELIVERY" | "APPROVE_REFUND";
 
 export interface InitiatePayload {
   sellerWallet: string;
@@ -217,12 +217,12 @@ export async function openDispute(dealId: string, callerWallet: string): Promise
   });
 }
 
-export async function confirmDelivery(dealId: string, buyerWallet: string) {
-  return request("/actions/confirm-delivery", { dealId, buyerWallet });
+export async function confirmDelivery(dealId: string, buyerWallet: string): Promise<ActionResponse> {
+  return request<ActionResponse>("/actions/confirm-delivery", { dealId, buyerWallet });
 }
 
-export async function approveRefund(dealId: string, sellerWallet: string) {
-  return request("/actions/approve-refund", { dealId, sellerWallet });
+export async function approveRefund(dealId: string, sellerWallet: string): Promise<ActionResponse> {
+  return request<ActionResponse>("/actions/approve-refund", { dealId, sellerWallet });
 }
 
 export async function confirm(payload: ConfirmPayload) {
