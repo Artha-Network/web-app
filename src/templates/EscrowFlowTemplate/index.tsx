@@ -1,4 +1,5 @@
 import { FC, PropsWithChildren } from "react";
+import { useNavigate } from "react-router-dom";
 import HeaderBar from "@/components/organisms/HeaderBar";
 
 export interface EscrowFlowTemplateProps extends PropsWithChildren {
@@ -13,13 +14,15 @@ export const EscrowFlowTemplate: FC<EscrowFlowTemplateProps> = ({
   userName = "User",
   children,
 }) => {
+  const navigate = useNavigate();
+
   return (
     <div
       className="relative flex h-auto min-h-screen w-full flex-col bg-gray-50 dark:bg-gray-900 group/design-root overflow-x-hidden"
       style={{ fontFamily: 'Inter, "Noto Sans", sans-serif' }}
     >
       <div className="layout-container flex h-full grow flex-col">
-        <HeaderBar userName={userName} />
+        <HeaderBar userName={userName} onNotificationsClick={() => navigate("/notifications")} />
         <main className="flex-1 px-4 sm:px-6 py-10">
           <div className="mx-auto max-w-6xl">
             <div className="text-center">

@@ -57,7 +57,7 @@ export const SolanaWalletProvider: React.FC<{ children: React.ReactNode }> = ({ 
     <ConnectionProvider endpoint={endpoint}>
       <WalletProvider
         wallets={wallets}
-        autoConnect={true}
+        autoConnect={false}
         onError={(error) => {
           if (error?.name === "WalletNotReadyError") {
             console.warn("Wallet not ready; user likely needs to install/enable wallet", error);

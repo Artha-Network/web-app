@@ -236,6 +236,7 @@ const Dashboard: FC = () => {
         <HeaderBar
           userName={userName}
           avatarUrl="https://lh3.googleusercontent.com/aida-public/AB6AXuAPp2y2Cah7z1UIbc18diVtfZ0q9F-TnVTK9Lvk5mOT7PdzYTfFh3EMkRB9-tVlgcKZaSE31AcQ8amNjJ1U4WJ4mqapt_s_qGDjvnMrcxbLXQAKaekEr2g11mX5hO3yesWvtsYReBCSvFZJjDJ_-L9p0z8YspicW5HtP0zDRXFKKmGoRioxwlpZ5MHgCy4nS2NSdOCb397BT3WuH6qDrJ_Wvj3KUSwT_9yNsGFv9H_w38WJt0QP3E6-H06eTnZFn-MXLyAELbjWxHzD"
+          onNotificationsClick={() => navigate("/notifications")}
         />
 
         <main className="gap-1 px-6 flex flex-1 justify-center py-5 bg-gray-50">

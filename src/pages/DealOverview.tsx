@@ -122,11 +122,13 @@ const DealOverview: React.FC = () => {
   const hasInsufficientUsdc = shouldCheckBalance && usdcBalance !== undefined && usdcBalance >= 0 && usdcBalance < dealAmount;
 
   const canFund = Boolean(dealId) && isBuyer && deal?.status === "INIT";
-  // On-chain: release = seller signs (claims funds), refund = buyer signs (claims refund back)
+  // Escrow authorization: the OTHER party must authorize fund movement.
+  // Release (funds → seller) requires BUYER approval (buyer confirms goods received).
+  // Refund (funds → buyer) requires SELLER approval (seller agrees to cancel/refund).
   // Direct release/refund only from FUNDED (no dispute). DISPUTED deals must go through arbitration first.
   // After arbitration (RESOLVED), the winning party claims from the Resolution page.
-  const canRelease = Boolean(dealId) && isSeller && deal?.status === "FUNDED";
-  const canRefund = Boolean(dealId) && isBuyer && deal?.status === "FUNDED";
+  const canRelease = Boolean(dealId) && isBuyer && deal?.status === "FUNDED";
+  const canRefund = Boolean(dealId) && isSeller && deal?.status === "FUNDED";
 
   const events = useMemo(() => deal?.onchain_events ?? [], [deal?.onchain_events]);
 
@@ -827,7 +829,7 @@ const DealOverview: React.FC = () => {
                 disabled={releaseAction.isPending}
                 onClick={() => handleAction('release')}
               >
-                {releaseAction.isPending ? "Processing..." : "Release Funds"}
+                {releaseAction.isPending ? "Processing..." : "Release Funds to Seller"}
               </Button>
             )}
             {canRefund && (
@@ -836,7 +838,7 @@ const DealOverview: React.FC = () => {
                 disabled={refundAction.isPending}
                 onClick={() => handleAction('refund')}
               >
-                {refundAction.isPending ? "Processing..." : "Refund Buyer"}
+                {refundAction.isPending ? "Processing..." : "Approve Refund"}
               </Button>
             )}
             {deal?.status === "FUNDED" && isParticipant && (
