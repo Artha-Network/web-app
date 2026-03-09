@@ -15,7 +15,7 @@ const Team = () => {
       specialties: ["Machine Learning", "Dispute Resolution", "LLM Integration"]
     },
     {
-      name: "Tanchopa Limbu Samba",
+      name: "Tanchhopa Limbu Sanba",
       role: "Backend Engineer",
       specialties: ["API Design", "Database", "Security"]
     },
