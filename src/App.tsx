@@ -14,6 +14,8 @@ import Step4 from "./pages/escrow/Step4";
 import Dashboard from "./pages/Dashboard";
 import Deals from "./pages/Deals";
 import DealOverview from "./pages/DealOverview";
+import Analytics from "./pages/Analytics";
+import Transactions from "./pages/Transactions";
 import EvidencePage from "./pages/EvidencePage";
 import ResolutionPage from "./pages/ResolutionPage";
 import EvidenceUpload from "./pages/EvidenceUpload";
@@ -70,6 +72,8 @@ const AppWithModal = () => {
         {/* Deal management */}
         <Route path="/deals" element={<ProtectedRoute><Deals /></ProtectedRoute>} />
         <Route path="/deal/:id" element={<ProtectedRoute><DealOverview /></ProtectedRoute>} />
+        <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+        <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
 
         {/* Escrow flow */}
         <Route path="/escrow/new" element={<ProtectedRoute><Step1 /></ProtectedRoute>} />
