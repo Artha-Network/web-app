@@ -33,7 +33,11 @@ import {
   Gavel,
   Brain,
   Timer,
+  Share2,
+  Printer,
 } from "lucide-react";
+import ShareDealDialog from "@/components/molecules/ShareDealDialog";
+import ReceiptDialog from "@/components/molecules/ReceiptDialog";
 import { formatDateTime, formatUsd, getExplorerUrl } from "@/utils/format";
 
 // Fetch VIN title status from gov endpoint
@@ -87,6 +91,8 @@ const DealOverview: React.FC = () => {
   const navigate = useNavigate();
   const { data: deal, isLoading, refetch } = useDeal(dealId);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [receiptOpen, setReceiptOpen] = useState(false);
   const fundAction = useAction("fund");
   const confirmDeliveryAction = useAction("confirmDelivery");
   const approveRefundAction = useAction("approveRefund");
@@ -291,10 +297,16 @@ const DealOverview: React.FC = () => {
               <p className="text-sm text-muted-foreground font-mono">{dealId}</p>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
+              <Share2 className="w-4 h-4 mr-2" />
+              Share
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {/* Action Error */}
@@ -875,7 +887,13 @@ const DealOverview: React.FC = () => {
                 <Button variant="outline">Manage Evidence</Button>
               </Link>
             )}
-            {!canFund && !canConfirmDelivery && !canApproveRefund && deal?.status !== "FUNDED" && deal?.status !== "RESOLVED" && deal?.status !== "DISPUTED" && (
+            {deal && ["RELEASED", "REFUNDED"].includes(deal.status) && (
+              <Button variant="outline" onClick={() => setReceiptOpen(true)}>
+                <Printer className="w-4 h-4 mr-2" />
+                Download Receipt
+              </Button>
+            )}
+            {!canFund && !canConfirmDelivery && !canApproveRefund && deal?.status !== "FUNDED" && deal?.status !== "RESOLVED" && deal?.status !== "DISPUTED" && !["RELEASED", "REFUNDED"].includes(deal?.status ?? "") && (
               <p className="text-sm text-muted-foreground py-2">No actions available for the current deal status.</p>
             )}
           </CardContent>
@@ -919,6 +937,24 @@ const DealOverview: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Share Dialog */}
+      <ShareDealDialog
+        dealId={dealId}
+        dealTitle={deal?.title ?? undefined}
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+      />
+
+      {/* Receipt Dialog */}
+      {deal && ["RELEASED", "REFUNDED"].includes(deal.status) && (
+        <ReceiptDialog
+          deal={deal}
+          resolution={resolution}
+          open={receiptOpen}
+          onOpenChange={setReceiptOpen}
+        />
+      )}
     </PageLayout>
   );
 };
