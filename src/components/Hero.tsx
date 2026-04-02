@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
-import { Shield, Zap, Brain } from "lucide-react";
+import { Shield, Zap, Brain, Car } from "lucide-react";
 import { useModalContext } from "@/context/ModalContext";
 import { useEvent } from "@/hooks/useEvent";
 import { useAuth } from "@/context/AuthContext";
@@ -65,45 +65,51 @@ const Hero = () => {
           </h1>
           
           <h2 className="text-2xl md:text-3xl font-semibold mb-6 text-foreground">
-            Decentralized AI-Powered Escrow
+            The Safest Way to Buy or Sell a Car From a Stranger
           </h2>
 
           <p className="text-lg md:text-xl text-muted-foreground mb-12 max-w-3xl mx-auto leading-relaxed">
-            The future of peer-to-peer transactions. Secure escrow services powered by Solana blockchain 
-            and intelligent AI arbitration. Make any transaction safe, from $10 purchases to major deals.
+            Escrow for private car sales on Facebook Marketplace and Craigslist.
+            Your money is held in a Solana smart contract until the deal is done.
+            Disputes resolved in minutes, not weeks. Just 0.5% fee.
           </p>
 
           {/* Feature highlights */}
           <div className="flex flex-wrap justify-center gap-6 mb-12">
             <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-card/50 backdrop-blur-sm border border-border/50">
               <Shield className="w-5 h-5 text-success" />
-              <span className="text-sm font-medium">Fraud Prevention</span>
+              <span className="text-sm font-medium">VIN Verified</span>
             </div>
             <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-card/50 backdrop-blur-sm border border-border/50">
               <Zap className="w-5 h-5 text-accent" />
-              <span className="text-sm font-medium">Instant Settlement</span>
+              <span className="text-sm font-medium">0.5% Fee</span>
             </div>
             <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-card/50 backdrop-blur-sm border border-border/50">
               <Brain className="w-5 h-5 text-secondary" />
-              <span className="text-sm font-medium">AI Arbitration</span>
+              <span className="text-sm font-medium">Disputes in Minutes</span>
             </div>
           </div>
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <Link to="/escrow/new" onClick={() => trackEvent('cta_get_started', { cta_type: 'sell_car', source: 'hero_button' })}>
+              <Button
+                size="lg"
+                className="px-8 rounded-full shadow-lg hover:shadow-xl transform hover:scale-105"
+              >
+                <Car className="w-5 h-5 mr-2" />
+                Sell Your Car Safely
+              </Button>
+            </Link>
             <Button
               onClick={handleConnectWalletClick}
+              variant="outline"
               size="lg"
-              className="px-8 rounded-full shadow-lg hover:shadow-xl transform hover:scale-105"
+              className="px-8 rounded-full border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
               disabled={isLoading}
             >
               {isLoading ? 'Loading...' : (isAuthenticated ? 'Dashboard' : 'Connect Wallet')}
             </Button>
-            <Link to="/docs" onClick={handleDocumentationClick}>
-              <Button variant="outline" size="lg" className="border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition">
-                View Documentation
-              </Button>
-            </Link>
           </div>
 
           {/* Quick Links */}

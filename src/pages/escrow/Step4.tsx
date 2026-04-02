@@ -54,21 +54,17 @@ const Step4: FC = () => {
   // Actions
   const { mutateAsync: release, isPending: releaseLoading } = useAction("release");
   const { mutateAsync: refund, isPending: refundLoading } = useAction("refund");
-  // const { mutateAsync: dispute, isPending: disputeLoading } = useAction("dispute"); // Dispute not supported in useAction yet
 
   const actionLoading = releaseLoading || refundLoading;
   const [actionError, setActionError] = useState<string | null>(null);
   const [lastActionResult, setLastActionResult] = useState<any>(null);
 
   // Determine data source (URL deal or flow data)
-  // No need to map deal anymore since interface is fixed
-  const displayData = shouldUseDealHook ? deal : {
+  // Cast to a common shape for display purposes
+  const displayData: Record<string, any> | undefined = shouldUseDealHook ? deal : {
+    ...data,
     id: 'temp-' + Date.now(),
-    counterpartyAddress: data.counterpartyAddress,
-    amount: data.amount,
-    description: data.description,
     status: 'CREATED',
-    ...data
   };
 
   // Track page view on mount
@@ -101,13 +97,13 @@ const Step4: FC = () => {
         throw new Error("Dispute action not yet implemented");
       }
 
-      if (result?.signature) {
+      if (result?.txSig) {
         // Track successful action
         trackEvent('payout_success', {
           deal_id: displayData.id,
           action_type: actionType,
           amount: displayData.amount,
-          transaction_signature: result.signature,
+          transaction_signature: result.txSig,
         });
 
         setLastActionResult(result);

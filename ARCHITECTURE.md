@@ -351,10 +351,7 @@ The Artha Network uses Supabase (managed PostgreSQL) as the persistence layer.
 
 - Backend (actions-server): Uses service_role key for privileged operations.
 - Frontend (web-app): Uses anon key for safe inserts/reads via `src/lib/supabaseClient.ts`.
-- core-domain: Defines shared schema validation using Zod.
-- dev-infra: Stores initialization SQL and migration documentation.
-
-Supabase replaces the local Docker Postgres environment while maintaining schema compatibility.
+- Migrations: Managed via `prisma db push` against Supabase.
 
 ### Wallet Adapter Integration (Frontend)
 
@@ -369,7 +366,7 @@ Supabase replaces the local Docker Postgres environment while maintaining schema
 
 - Future backend integration:
   - Register `walletAddress` in PostgreSQL via `actions-server` endpoint (`POST /api/users`)
-  - Associate with user reputation & deal history in `core-domain`
+  - Associate with user reputation & deal history
 
 ---
 

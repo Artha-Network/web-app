@@ -6,6 +6,10 @@ import { nodePolyfills } from "vite-plugin-node-polyfills";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  test: {
+    globals: true,
+    environment: "node",
+  },
   server: {
     host: "::",
     port: 8081,

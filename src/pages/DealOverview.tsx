@@ -5,7 +5,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
-import { PublicKey } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 import { useDeal, useResolution } from "@/hooks/useDeals";
 import { useAction } from "@/hooks/useAction";
 import { useEvent } from "@/hooks/useEvent";
@@ -13,6 +13,8 @@ import { useQuery } from "@tanstack/react-query";
 import { API_BASE, USDC_MINT } from "@/lib/config";
 import PageLayout from "@/components/layouts/PageLayout";
 import { Skeleton } from "@/components/ui/skeleton";
+import CopyLinkCard from "@/components/molecules/deal/CopyLinkCard";
+import DmvChecklistCard from "@/components/molecules/deal/DmvChecklistCard";
 import {
   ArrowLeft,
   ExternalLink,
@@ -64,7 +66,7 @@ const statusColors: Record<string, string> = {
 };
 
 // Fetch USDC token balance for a wallet
-async function fetchUsdcBalance(connection: any, wallet: PublicKey): Promise<number> {
+async function fetchUsdcBalance(connection: Connection, wallet: PublicKey): Promise<number> {
   try {
     const mint = new PublicKey(USDC_MINT);
     const tokenAccounts = await connection.getParsedTokenAccountsByOwner(wallet, { mint });
@@ -94,10 +96,10 @@ const DealOverview: React.FC = () => {
     deal?.status === "RESOLVED" ? dealId : undefined
   );
 
-  const isBuyer = walletAddress && deal?.buyer_wallet?.toLowerCase() === walletAddress.toLowerCase();
-  const isSeller = walletAddress && deal?.seller_wallet?.toLowerCase() === walletAddress.toLowerCase();
+  const isBuyer = Boolean(walletAddress && deal?.buyer_wallet?.toLowerCase() === walletAddress.toLowerCase());
+  const isSeller = Boolean(walletAddress && deal?.seller_wallet?.toLowerCase() === walletAddress.toLowerCase());
   const isParticipant = isBuyer || isSeller;
-  const isCreator = walletAddress && deal?.created_by_wallet?.toLowerCase() === walletAddress.toLowerCase();
+  const isCreator = Boolean(walletAddress && deal?.created_by_wallet?.toLowerCase() === walletAddress.toLowerCase());
   const isCounterparty = isParticipant && !isCreator;
 
   // VIN title status polling (only when deal has a VIN)
@@ -111,8 +113,8 @@ const DealOverview: React.FC = () => {
   const titleTransferred = titleStatus?.title_status === "TRANSFERRED";
 
   // USDC balance check for buyer (only when they need to fund)
-  const shouldCheckBalance = Boolean(publicKey) && isBuyer && deal?.status === "INIT";
-  const { data: usdcBalance } = useQuery({
+  const shouldCheckBalance = Boolean(publicKey) && Boolean(isBuyer) && deal?.status === "INIT";
+  const { data: usdcBalance } = useQuery<number>({
     queryKey: ["usdc-balance", walletAddress],
     queryFn: () => fetchUsdcBalance(connection, publicKey!),
     enabled: shouldCheckBalance,
@@ -620,49 +622,52 @@ const DealOverview: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-                {(deal.metadata as Record<string, unknown>).year && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Year / Make / Model</p>
-                    <p className="font-medium">
-                      {(deal.metadata as Record<string, unknown>).year}{" "}
-                      {(deal.metadata as Record<string, unknown>).make}{" "}
-                      {(deal.metadata as Record<string, unknown>).model}
-                    </p>
-                  </div>
-                )}
-                {(deal.metadata as Record<string, unknown>).vin && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">VIN</p>
-                    <p className="font-mono text-sm">{String((deal.metadata as Record<string, unknown>).vin)}</p>
-                  </div>
-                )}
-                {(deal.metadata as Record<string, unknown>).odometerMiles != null && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Odometer</p>
-                    <p className="font-medium">{Number((deal.metadata as Record<string, unknown>).odometerMiles).toLocaleString()} mi</p>
-                  </div>
-                )}
-                {(deal.metadata as Record<string, unknown>).deliveryType && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Delivery Type</p>
-                    <p className="font-medium">
-                      {String((deal.metadata as Record<string, unknown>).deliveryType).replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
-                    </p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm text-muted-foreground">Title Status</p>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={(deal.metadata as Record<string, unknown>).hasTitleInHand ? "default" : "outline"}>
-                      {(deal.metadata as Record<string, unknown>).hasTitleInHand ? "Title in hand" : "No title yet"}
-                    </Badge>
-                    {(deal.metadata as Record<string, unknown>).isSalvageTitle && (
-                      <Badge variant="destructive">Salvage</Badge>
+              {(() => {
+                const meta = deal.metadata as Record<string, unknown>;
+                return (
+                  <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                    {Boolean(meta.year) && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">Year / Make / Model</p>
+                        <p className="font-medium">
+                          {String(meta.year)} {String(meta.make)} {String(meta.model)}
+                        </p>
+                      </div>
                     )}
+                    {Boolean(meta.vin) && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">VIN</p>
+                        <p className="font-mono text-sm">{String(meta.vin)}</p>
+                      </div>
+                    )}
+                    {meta.odometerMiles != null && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">Odometer</p>
+                        <p className="font-medium">{Number(meta.odometerMiles).toLocaleString()} mi</p>
+                      </div>
+                    )}
+                    {Boolean(meta.deliveryType) && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">Delivery Type</p>
+                        <p className="font-medium">
+                          {String(meta.deliveryType).replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                        </p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm text-muted-foreground">Title Status</p>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={meta.hasTitleInHand ? "default" : "outline"}>
+                          {meta.hasTitleInHand ? "Title in hand" : "No title yet"}
+                        </Badge>
+                        {Boolean(meta.isSalvageTitle) && (
+                          <Badge variant="destructive">Salvage</Badge>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                );
+              })()}
             </CardContent>
           </Card>
         )}
@@ -882,6 +887,16 @@ const DealOverview: React.FC = () => {
         </Card>
 
         {/* On-chain Events */}
+        {/* Share Deal Link — visible to seller when deal is active */}
+        {isSeller && deal?.status && !["REFUNDED"].includes(deal.status) && (
+          <CopyLinkCard dealId={dealId} />
+        )}
+
+        {/* DMV Title Transfer Checklist — visible after release on vehicle deals */}
+        {deal?.vin && deal?.status === "RELEASED" && (
+          <DmvChecklistCard />
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle>Transaction History</CardTitle>

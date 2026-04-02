@@ -166,7 +166,7 @@ const ACTIVE_STATUSES = new Set(["INIT", "FUNDED", "DISPUTED"]);
 const POLL_INTERVAL_MS = 15_000;
 
 export function useDeal(dealId?: string) {
-  return useQuery({
+  return useQuery<DealWithEvents>({
     queryKey: ["deal", dealId],
     queryFn: () => fetchDealById(dealId!),
     enabled: Boolean(dealId),

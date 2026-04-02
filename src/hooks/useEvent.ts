@@ -86,7 +86,13 @@ export type EventType =
 
   // Wallet management events
   | 'wallet_refresh'
-  | 'wallet_disconnected';
+  | 'wallet_disconnected'
+
+  // Authorization flow events
+  | 'confirm_delivery_success'
+  | 'approve_refund_success'
+  | 'action_failed'
+  | 'evidence_page_viewed';
 
 /**
  * Hook for tracking frontend analytics events

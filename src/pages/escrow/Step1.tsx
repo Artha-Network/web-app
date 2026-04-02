@@ -49,6 +49,7 @@ const Step1: FC = () => {
   const [carPlan, setCarPlan] = useState<CarEscrowPlan | null>(null);
   const [carPlanLoading, setCarPlanLoading] = useState(false);
   const [carPlanError, setCarPlanError] = useState<string | null>(null);
+  const [vinLookup, setVinLookup] = useState<{ loading: boolean; result: { year: string; make: string; model: string; valid: boolean; errorCode: string } | null }>({ loading: false, result: null });
 
   const updateCarField = useCallback(<K extends keyof CarMetadata>(key: K, value: CarMetadata[K]) => {
     updateData({
@@ -56,11 +57,33 @@ const Step1: FC = () => {
     });
   }, [data.carMetadata, updateData]);
 
+  const handleVinBlur = useCallback(async () => {
+    const vin = data.vin?.trim();
+    if (!vin || vin.length !== 17) return;
+
+    setVinLookup({ loading: true, result: null });
+    try {
+      const res = await fetch(`${API_BASE}/api/vin/${vin}`);
+      if (!res.ok) {
+        setVinLookup({ loading: false, result: { year: "", make: "", model: "", valid: false, errorCode: "FETCH_ERROR" } });
+        return;
+      }
+      const result = await res.json();
+      setVinLookup({ loading: false, result });
+      // Auto-fill year/make/model if NHTSA returned data
+      if (result.year) updateCarField("year", Number(result.year));
+      if (result.make) updateCarField("make", result.make);
+      if (result.model) updateCarField("model", result.model);
+    } catch {
+      setVinLookup({ loading: false, result: { year: "", make: "", model: "", valid: false, errorCode: "FETCH_ERROR" } });
+    }
+  }, [data.vin, updateCarField]);
+
   // Fetch car escrow plan when enough fields are filled
   useEffect(() => {
     if (!data.isCarSale) return;
     const cm = data.carMetadata;
-    if (!cm?.year || !cm?.deliveryType || cm?.odometerMiles === undefined || cm?.odometerMiles === "" || !data.amount || data.amount === "") return;
+    if (!cm?.year || !cm?.deliveryType || (!cm?.odometerMiles && cm?.odometerMiles !== 0) || !data.amount) return;
     if (cm.hasTitleInHand === undefined) return;
 
     const controller = new AbortController();
@@ -565,10 +588,35 @@ const Step1: FC = () => {
                     setField("vin", e.target.value.toUpperCase());
                     if (errors.vin) setErrors(prev => ({ ...prev, vin: "" }));
                   }}
+                  onBlur={handleVinBlur}
                   placeholder="17-character VIN"
                   maxLength={17}
                   className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${errors.vin ? 'border-red-500' : ''}`}
                 />
+                {vinLookup.loading && (
+                  <p className="mt-1 text-sm text-muted-foreground flex items-center gap-1">
+                    <Loader className="w-3 h-3 animate-spin" />
+                    Looking up VIN...
+                  </p>
+                )}
+                {vinLookup.result && vinLookup.result.valid && (
+                  <p className="mt-1 text-sm text-green-600 flex items-center gap-1">
+                    <Shield className="w-3 h-3" />
+                    {vinLookup.result.year} {vinLookup.result.make} {vinLookup.result.model}
+                  </p>
+                )}
+                {vinLookup.result && !vinLookup.result.valid && vinLookup.result.make && (
+                  <p className="mt-1 text-sm text-amber-600 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" />
+                    {vinLookup.result.year} {vinLookup.result.make} {vinLookup.result.model} (partial match)
+                  </p>
+                )}
+                {vinLookup.result && !vinLookup.result.valid && !vinLookup.result.make && (
+                  <p className="mt-1 text-sm text-amber-600 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" />
+                    Could not verify VIN — you can still proceed
+                  </p>
+                )}
                 {errors.vin && (
                   <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3" />

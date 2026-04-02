@@ -15,13 +15,12 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useAction } from "@/hooks/useAction";
 
 /**
- * Step2 - Fund deal and deploy to Solana (Fund.tsx)
- * 
- * Purpose: fund deal
- * Route: /escrow/fund/:id  (where :id is temporary local ID)
+ * Step3 - Review & initiate deal on Solana
+ *
+ * Purpose: review deal terms, initiate on-chain escrow
+ * Route: /escrow/step3
  * Emits: fund_attempt, fund_success, fund_failed
- * Storage: update deal status to FUNDED
- * AI: none yet
+ * Storage: update deal status to INIT → FUNDED
  * Solana: Initialize escrow PDA, fund vault
  * Links: /deal/:deal_id (the actual blockchain deal_id from response)
  */
@@ -82,8 +81,9 @@ const Step3: FC = () => {
       // completionDeadline = when seller must deliver (mapped to on-chain deliverBy)
       // disputeDeadline = window after delivery for raising disputes (currently same as delivery deadline)
       const deliverBy = data.completionDeadline ? Math.floor(new Date(data.completionDeadline).getTime() / 1000) : undefined;
+      const DISPUTE_WINDOW_DAYS = data.vin ? 5 : 7; // 5-day inspection for vehicles, 7-day for general
       const disputeDeadline = data.completionDeadline
-        ? Math.floor(new Date(data.completionDeadline).getTime() / 1000) + 7 * 24 * 60 * 60 // 7-day dispute window after delivery
+        ? Math.floor(new Date(data.completionDeadline).getTime() / 1000) + DISPUTE_WINDOW_DAYS * 24 * 60 * 60
         : undefined;
 
       // useAction "initiate" always treats the caller as the seller (sellerWallet = viewerWallet)

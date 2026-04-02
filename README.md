@@ -220,8 +220,6 @@ You should see the Artha Network landing page.
 - Dispute opening and evidence submission
 - Status tracking and timeline views
 - Integration with actions-server API
-- SDK utilities integration (solana-kit)
-
 ### System Integration
 
 ```
@@ -230,7 +228,6 @@ You should see the Artha Network landing page.
 └──────┬──────┘
        │
        ├──▶ actions-server     (API & Actions)
-       ├──▶ solana-kit          (SDK utilities)
        ├──▶ onchain-escrow      (Smart contracts)
        └──▶ arbiter-service     (AI dispute resolution)
 ```
@@ -520,28 +517,6 @@ POST /api/escrow/evidence
 GET /api/deals?wallet={address}
 ```
 
-### SDK Usage (solana-kit)
-
-```typescript
-import { 
-  deriveEscrowStatePDA,
-  parseTokenAmount,
-  validateAmount,
-  PROGRAM_IDS
-} from "@artha-network/solana-kit";
-
-// Derive deal address
-const [escrowState] = deriveEscrowStatePDA(
-  seller, buyer, mint, PROGRAM_IDS.devnet
-);
-
-// Parse user input
-const amount = parseTokenAmount("100"); // 100 USDC
-
-// Validate before transaction
-const validation = validateAmount(amount);
-```
-
 ## Testing
 
 ### Type Checking
@@ -714,7 +689,7 @@ NODE_OPTIONS=--max-old-space-size=4096 npm run build
 
 **Integration:**
 - Connected to actions-server API
-- Integrated solana-kit utilities
+- Integrated Solana Web3.js for on-chain interactions
 - Implemented Solana wallet adapter
 - Added analytics event tracking
 
@@ -765,12 +740,8 @@ This web app is part of the larger **Artha Network** ecosystem:
 | Repository | Purpose | Tech Stack |
 |-----------|---------|-----------|
 | **[onchain-escrow](../onchain-escrow)** | Solana smart contracts | Rust, Anchor 0.32 |
-| **[actions-server](../actions-server)** | Backend API & Blinks | Node.js, Express, Prisma |
-| **[solana-kit](../solana-kit)** | TypeScript SDK | TypeScript, Anchor client |
-| **[arbiter-service](../arbiter-service)** | AI dispute resolution | Node.js, Gemini API |
-| **[jobs-service](../jobs-service)** | Background workers | Node.js, BullMQ, Redis |
-| **[core-domain](../core-domain)** | Shared business logic | TypeScript |
-| **[tickets-lib](../tickets-lib)** | Resolution ticket system | TypeScript |
+| **[actions-server](../actions-server)** | Backend API & Actions | Node.js, Express, Prisma |
+| **[arbiter-service](../arbiter-service)** | AI dispute resolution | Node.js, Claude API |
 
 ### Repository Workflow
 
@@ -786,9 +757,9 @@ This web app is part of the larger **Artha Network** ecosystem:
             ┌────────────────┼────────────────┐
             │                │                │
     ┌───────▼──────┐  ┌──────▼──────┐  ┌────▼────────┐
-    │ Onchain      │  │ Arbiter     │  │ Jobs        │
-    │ Escrow       │  │ Service     │  │ Service     │
-    │ (Program)    │  │ (AI)        │  │ (Workers)   │
+    │ Onchain      │  │ Arbiter     │  │ Supabase    │
+    │ Escrow       │  │ Service     │  │ (Postgres)  │
+    │ (Program)    │  │ (AI)        │  │             │
     └──────────────┘  └─────────────┘  └─────────────┘
 ```
 
