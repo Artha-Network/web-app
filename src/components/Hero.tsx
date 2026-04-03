@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
-import { Shield, Zap, Brain, Car } from "lucide-react";
+import { Shield, Zap, Brain } from "lucide-react";
 import { useModalContext } from "@/context/ModalContext";
 import { useEvent } from "@/hooks/useEvent";
 import { useAuth } from "@/context/AuthContext";
@@ -92,15 +92,6 @@ const Hero = () => {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Link to="/escrow/new" onClick={() => trackEvent('cta_get_started', { cta_type: 'sell_car', source: 'hero_button' })}>
-              <Button
-                size="lg"
-                className="px-8 rounded-full shadow-lg hover:shadow-xl transform hover:scale-105"
-              >
-                <Car className="w-5 h-5 mr-2" />
-                Sell Your Car Safely
-              </Button>
-            </Link>
             <Button
               onClick={handleConnectWalletClick}
               variant="outline"
@@ -114,15 +105,22 @@ const Hero = () => {
 
           {/* Quick Links */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-8">
-            <Link 
-              to="/wallet-connect" 
+            <Link
+              to="/docs"
+              onClick={handleDocumentationClick}
+              className="text-sm text-muted-foreground hover:text-primary transition-colors"
+            >
+              Learn & Documentation →
+            </Link>
+            <Link
+              to="/wallet-connect"
               onClick={() => trackEvent('cta_get_started', { cta_type: 'wallet_connect', source: 'hero_quick_link' })}
               className="text-sm text-muted-foreground hover:text-primary transition-colors"
             >
               Connect Wallet →
             </Link>
-            <Link 
-              to="/deals" 
+            <Link
+              to="/deals"
               onClick={() => trackEvent('cta_get_started', { cta_type: 'view_deals', source: 'hero_quick_link' })}
               className="text-sm text-muted-foreground hover:text-primary transition-colors"
             >

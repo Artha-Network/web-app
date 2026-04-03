@@ -149,27 +149,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return () => { cancelled = true; controller.abort(); };
     }, [checkSession]);
 
-    // Clear state when wallet disconnects (but NOT on initial mount before autoConnect)
-    const wasEverConnectedRef = useRef(false);
+    // Reset auth-attempted flag when wallet disconnects so re-connecting
+    // the same or a different wallet will trigger auto-login again.
+    // We intentionally do NOT call /auth/logout here — the server session
+    // is cookie-based and should survive wallet adapter reconnect cycles
+    // (page refresh, adapter re-init, brief Phantom disconnects, etc.).
+    // The explicit logout() function is the only path that destroys the session.
     useEffect(() => {
-        if (connected) {
-            wasEverConnectedRef.current = true;
-            return;
+        if (!connected) {
+            setAuthAttempted(false);
         }
-        // Only logout if we were previously connected (user intentionally disconnected)
-        if (!wasEverConnectedRef.current) return;
-
-        setAuthAttempted(false);
-        setIsAuthenticated(false);
-        setUser(null);
-        setError(null);
-
-        fetch(`${API_BASE}/auth/logout`, {
-            method: 'POST',
-            credentials: 'include'
-        }).catch(() => {
-            // Best-effort — local state is already cleared
-        });
     }, [connected]);
 
     const login = useCallback(async (options?: { autoTriggered?: boolean }) => {

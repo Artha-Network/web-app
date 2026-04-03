@@ -86,11 +86,16 @@ const Step3: FC = () => {
         ? Math.floor(new Date(data.completionDeadline).getTime() / 1000) + DISPUTE_WINDOW_DAYS * 24 * 60 * 60
         : undefined;
 
-      // useAction "initiate" always treats the caller as the seller (sellerWallet = viewerWallet)
-      // and the counterparty as the buyer (buyerWallet = counterpartyAddress).
-      // Email mappings must follow that convention so the backend sends notification to the right party.
-      const buyerEmail = data.counterpartyEmail?.trim() || undefined; // counterparty is always buyer
-      const sellerEmail = data.userEmail || undefined;                 // initiator is always seller
+      // Role-aware email mapping:
+      // If I'm the buyer, my email is buyerEmail and counterparty is sellerEmail.
+      // If I'm the seller, my email is sellerEmail and counterparty is buyerEmail.
+      const isBuyer = data.role === "buyer";
+      const buyerEmail = isBuyer
+        ? (data.userEmail || undefined)
+        : (data.counterpartyEmail?.trim() || undefined);
+      const sellerEmail = isBuyer
+        ? (data.counterpartyEmail?.trim() || undefined)
+        : (data.userEmail || undefined);
 
       initiateEscrow({
         counterparty: data.counterpartyAddress,
@@ -100,6 +105,7 @@ const Step3: FC = () => {
         deliverBy,
         disputeDeadline,
         feeBps: 50, // 0.5% fee (50 basis points)
+        role: data.role,
         buyerEmail,
         sellerEmail,
         vin: data.vin?.trim() || undefined,

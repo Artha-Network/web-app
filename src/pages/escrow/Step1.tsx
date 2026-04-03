@@ -1,4 +1,4 @@
-import { FC, useEffect, useState, useCallback } from "react";
+import { FC, useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -42,6 +42,7 @@ const Step1: FC = () => {
   const { trackEvent, trackDealEvent } = useEvent();
   const navigate = useNavigate();
 
+  const lastAutoTitle = useRef<string>("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isValidating, setIsValidating] = useState(false);
   const [userEmail, setUserEmail] = useState<string>("");
@@ -57,27 +58,46 @@ const Step1: FC = () => {
     });
   }, [data.carMetadata, updateData]);
 
-  const handleVinBlur = useCallback(async () => {
-    const vin = data.vin?.trim();
-    if (!vin || vin.length !== 17) return;
+  const [lastLookedUpVin, setLastLookedUpVin] = useState<string>("");
 
+  const lookupVin = useCallback(async (vin: string) => {
+    const trimmed = vin.trim();
+    if (!trimmed || trimmed.length !== 17 || trimmed === lastLookedUpVin) return;
+
+    setLastLookedUpVin(trimmed);
     setVinLookup({ loading: true, result: null });
     try {
-      const res = await fetch(`${API_BASE}/api/vin/${vin}`);
+      const res = await fetch(`${API_BASE}/api/vin/${trimmed}`);
       if (!res.ok) {
         setVinLookup({ loading: false, result: { year: "", make: "", model: "", valid: false, errorCode: "FETCH_ERROR" } });
         return;
       }
       const result = await res.json();
       setVinLookup({ loading: false, result });
-      // Auto-fill year/make/model if NHTSA returned data
-      if (result.year) updateCarField("year", Number(result.year));
-      if (result.make) updateCarField("make", result.make);
-      if (result.model) updateCarField("model", result.model);
+      // Auto-fill year/make/model and title if NHTSA returned data
+      const updates: Partial<typeof data> = {};
+      const carUpdates: Partial<CarMetadata> = { ...data.carMetadata, vin: trimmed };
+      if (result.year) carUpdates.year = Number(result.year);
+      if (result.make) carUpdates.make = result.make;
+      if (result.model) carUpdates.model = result.model;
+      updates.carMetadata = carUpdates as CarMetadata;
+      // Auto-fill deal title if empty or was previously auto-filled
+      if (result.make && result.model) {
+        const autoTitle = `${result.year || ""} ${result.make} ${result.model}`.trim();
+        if (!data.title || data.title === lastAutoTitle.current) {
+          updates.title = autoTitle;
+          lastAutoTitle.current = autoTitle;
+        }
+      }
+      updateData(updates);
     } catch {
       setVinLookup({ loading: false, result: { year: "", make: "", model: "", valid: false, errorCode: "FETCH_ERROR" } });
     }
-  }, [data.vin, updateCarField]);
+  }, [lastLookedUpVin, data.carMetadata, data.title, updateData]);
+
+  const handleVinBlur = useCallback(() => {
+    if (data.vin) lookupVin(data.vin);
+  }, [data.vin, lookupVin]);
 
   // Fetch car escrow plan when enough fields are filled
   useEffect(() => {
@@ -585,8 +605,10 @@ const Step1: FC = () => {
                   id="vin"
                   value={data.vin || ""}
                   onChange={(e) => {
-                    setField("vin", e.target.value.toUpperCase());
+                    const val = e.target.value.toUpperCase();
+                    setField("vin", val);
                     if (errors.vin) setErrors(prev => ({ ...prev, vin: "" }));
+                    if (val.trim().length === 17) lookupVin(val);
                   }}
                   onBlur={handleVinBlur}
                   placeholder="17-character VIN"

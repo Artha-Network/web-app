@@ -1,7 +1,7 @@
 import { FC, useMemo, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
 import { Banknote, Gavel, CheckCircle2, ArrowRightCircle, Repeat, RefreshCw, Wallet, Globe, DollarSign, AlertCircle } from "lucide-react";
 import {
   AlertDialog,
@@ -29,6 +29,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useMyDeals, useRecentDealEvents, statusToBadge, useDeleteDeal } from "@/hooks/useDeals";
 import { useEvent } from "@/hooks/useEvent";
 import { getConfiguredCluster } from '@/utils/solana';
+import { USDC_MINT } from '@/lib/config';
 import type { DealCardProps } from "@/components/molecules/DealCard";
 import WalletConnectModal from "@/components/modals/WalletConnectModal";
 
@@ -76,6 +77,7 @@ const Dashboard: FC = () => {
   const { isAuthenticated, isLoading: isAuthLoading, user: authUser, error: authError, login: retryAuth } = useAuth();
 
   const [solBalance, setSolBalance] = useState<number | null>(null);
+  const [usdcBalance, setUsdcBalance] = useState<number | null>(null);
   const [isBalanceLoading, setIsBalanceLoading] = useState(false);
   const [cluster] = useState(getConfiguredCluster());
   const [showConnectModal, setShowConnectModal] = useState(false);
@@ -103,13 +105,10 @@ const Dashboard: FC = () => {
     }
   }, [connected, publicKey, wallet, cluster, trackEvent]);
 
-  // Detect auth/wallet mismatch and prompt user to reconnect
+  // When wallet connects, dismiss the connect modal
   useEffect(() => {
-    if (isAuthenticated && !connected && !isAuthLoading) {
-      // User has a valid backend session but wallet is disconnected
-      setShowConnectModal(true);
-    }
-  }, [isAuthenticated, connected, isAuthLoading]);
+    if (connected) setShowConnectModal(false);
+  }, [connected]);
 
   // Fetch wallet balances
   const fetchWalletData = async () => {
@@ -118,8 +117,21 @@ const Dashboard: FC = () => {
     setIsBalanceLoading(true);
     try {
       // Fetch SOL balance
-      const solBalance = await connection.getBalance(publicKey);
-      setSolBalance(solBalance / LAMPORTS_PER_SOL);
+      const solBal = await connection.getBalance(publicKey);
+      setSolBalance(solBal / LAMPORTS_PER_SOL);
+
+      // Fetch USDC balance
+      try {
+        const usdcMint = new PublicKey(USDC_MINT);
+        const tokenAccounts = await connection.getParsedTokenAccountsByOwner(publicKey, { mint: usdcMint });
+        const total = tokenAccounts.value.reduce((sum, acc) => {
+          const info = acc.account.data.parsed?.info;
+          return sum + (info?.tokenAmount?.uiAmount ?? 0);
+        }, 0);
+        setUsdcBalance(total);
+      } catch {
+        setUsdcBalance(0);
+      }
     } catch (error) {
       console.error('Error fetching wallet data:', error);
     } finally {
@@ -299,37 +311,49 @@ const Dashboard: FC = () => {
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                       <div>
                         <label className="text-sm font-medium text-muted-foreground">Wallet</label>
                         <p className="font-semibold">{wallet?.adapter?.name || 'Unknown'}</p>
                       </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Network</label>
-                    <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
-                      <Globe className="w-3 h-3 mr-1" />
-                      {cluster.charAt(0).toUpperCase() + cluster.slice(1)}
-                    </Badge>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">SOL Balance</label>
-                    <div className="flex items-center gap-2">
-                      {isBalanceLoading ? (
-                        <div className="h-6 w-24 bg-muted animate-pulse rounded" />
-                      ) : (
-                        <span className="font-semibold">
-                          {solBalance?.toFixed(4) || '0.0000'} SOL
-                        </span>
-                      )}
-                      <DollarSign className="w-4 h-4 text-muted-foreground" />
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Network</label>
+                        <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
+                          <Globe className="w-3 h-3 mr-1" />
+                          {cluster.charAt(0).toUpperCase() + cluster.slice(1)}
+                        </Badge>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">SOL Balance</label>
+                        <div className="flex items-center gap-2">
+                          {isBalanceLoading ? (
+                            <div className="h-6 w-24 bg-muted animate-pulse rounded" />
+                          ) : (
+                            <span className="font-semibold">
+                              {solBalance?.toFixed(4) || '0.0000'} SOL
+                            </span>
+                          )}
+                        </div>
+                        {solBalance !== null && solBalance < 0.01 && (
+                          <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                            Low balance - you may need SOL for fees
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">USDC Balance</label>
+                        <div className="flex items-center gap-2">
+                          {isBalanceLoading ? (
+                            <div className="h-6 w-24 bg-muted animate-pulse rounded" />
+                          ) : (
+                            <span className="font-semibold">
+                              {usdcBalance?.toFixed(2) || '0.00'} USDC
+                            </span>
+                          )}
+                          <DollarSign className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                      </div>
                     </div>
-                    {solBalance !== null && solBalance < 0.01 && (
-                      <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
-                        ⚠️ Low balance - you may need SOL for fees
-                      </p>
-                    )}
-                  </div>
-                </div>
 
                 {/* Wallet Verification Status */}
                 <div className="mt-4 pt-4 border-t">
