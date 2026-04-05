@@ -8,6 +8,7 @@ interface User {
     name?: string;
     displayName?: string;
     emailAddress?: string;
+    avatarUrl?: string | null;
     profileComplete?: boolean;
     isNewUser?: boolean;
     reputationScore?: number;
@@ -57,6 +58,7 @@ function parseUserFromResponse(data: any): User {
         name: data.user.displayName,
         displayName: data.user.displayName,
         emailAddress: data.user.emailAddress,
+        avatarUrl: data.user.avatarUrl ?? null,
         profileComplete: data.user.profileComplete ?? profileComplete,
         isNewUser: data.user.isNewUser ?? !profileComplete,
         reputationScore: parseFloat(data.user.reputationScore) || 0,

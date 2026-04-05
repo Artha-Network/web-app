@@ -9,7 +9,8 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import { useDeal, useResolution } from "@/hooks/useDeals";
 import { useAction } from "@/hooks/useAction";
 import { useEvent } from "@/hooks/useEvent";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import actionsService from "@/services/actions";
 import { API_BASE, USDC_MINT } from "@/lib/config";
 import PageLayout from "@/components/layouts/PageLayout";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -87,8 +88,11 @@ const DealOverview: React.FC = () => {
   const walletAddress = publicKey?.toBase58();
 
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: deal, isLoading, refetch } = useDeal(dealId);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [acceptLoading, setAcceptLoading] = useState(false);
+  const [declineLoading, setDeclineLoading] = useState(false);
   const fundAction = useAction("fund");
   const confirmDeliveryAction = useAction("confirmDelivery");
   const approveRefundAction = useAction("approveRefund");
@@ -332,8 +336,23 @@ const DealOverview: React.FC = () => {
           </Alert>
         )}
 
-        {/* Contract Review Card — shown to counterparty when deal is INIT */}
-        {isCounterparty && deal?.status === "INIT" && (
+        {/* Counterparty accepted — waiting for buyer to fund */}
+        {isCounterparty && !isBuyer && deal?.status === "INIT" && deal?.counterparty_accepted_at && (
+          <Card className="border-2 border-green-500">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+                Terms Accepted
+              </CardTitle>
+              <CardDescription>
+                You accepted this deal. Waiting for the buyer to fund the escrow.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        )}
+
+        {/* Contract Review Card — shown to counterparty when deal is INIT and not yet accepted */}
+        {isCounterparty && deal?.status === "INIT" && !(deal?.counterparty_accepted_at && !isBuyer) && (
           <Card className="border-2 border-primary">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -434,27 +453,53 @@ const DealOverview: React.FC = () => {
                 ) : (
                   <Button
                     className="flex-1 bg-green-600 hover:bg-green-700"
-                    onClick={() => {
-                      // Seller accepts — no on-chain action needed, just acknowledge
-                      window.alert("Terms accepted! The buyer will now fund the escrow.");
+                    disabled={acceptLoading}
+                    onClick={async () => {
+                      if (!walletAddress) return;
+                      setAcceptLoading(true);
+                      setActionError(null);
+                      try {
+                        await actionsService.acceptDeal(dealId, walletAddress);
+                        await queryClient.invalidateQueries({ queryKey: ["deal", dealId] });
+                        await refetch();
+                      } catch (err) {
+                        setActionError(err instanceof Error ? err.message : "Failed to accept deal");
+                      } finally {
+                        setAcceptLoading(false);
+                      }
                     }}
                   >
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Accept Terms
+                    {acceptLoading ? (
+                      <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Accepting...</>
+                    ) : (
+                      <><CheckCircle className="w-4 h-4 mr-2" />Accept Terms</>
+                    )}
                   </Button>
                 )}
                 <Button
                   variant="outline"
                   className="flex-1"
-                  disabled={fundAction.isPending}
-                  onClick={() => {
-                    if (window.confirm("Are you sure you want to decline this deal? The deal will remain open but you will navigate away.")) {
-                      window.location.href = "/deals";
+                  disabled={fundAction.isPending || declineLoading}
+                  onClick={async () => {
+                    if (!walletAddress) return;
+                    if (!window.confirm("Are you sure you want to decline this deal? This will permanently remove it.")) return;
+                    setDeclineLoading(true);
+                    setActionError(null);
+                    try {
+                      await actionsService.declineDeal(dealId, walletAddress);
+                      await queryClient.invalidateQueries({ queryKey: ["my-deals"] });
+                      navigate("/deals");
+                    } catch (err) {
+                      setActionError(err instanceof Error ? err.message : "Failed to decline deal");
+                      setDeclineLoading(false);
                     }
                   }}
                 >
-                  <BanIcon className="w-4 h-4 mr-2" />
-                  Decline
+                  {declineLoading ? (
+                    <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Declining...</>
+                  ) : (
+                    <><BanIcon className="w-4 h-4 mr-2" />Decline</>
+                  )}
                 </Button>
               </div>
             </CardContent>
@@ -470,9 +515,13 @@ const DealOverview: React.FC = () => {
                 {isBuyer ? "Ready to Fund" : "Waiting for Buyer"}
               </CardTitle>
               <CardDescription>
-                {isBuyer
-                  ? "You created this deal. You can fund the escrow now or wait for the seller to review the terms."
-                  : "You created this deal. Waiting for the buyer to review the contract and fund the escrow."}
+                {deal?.counterparty_accepted_at
+                  ? isBuyer
+                    ? "You created this deal. The seller has accepted the terms — you can fund the escrow now."
+                    : "You created this deal. The counterparty has accepted — waiting for the buyer to fund the escrow."
+                  : isBuyer
+                    ? "You created this deal. You can fund the escrow now or wait for the seller to review the terms."
+                    : "You created this deal. Waiting for the buyer to review the contract and fund the escrow."}
               </CardDescription>
             </CardHeader>
             {isBuyer && (

@@ -225,6 +225,14 @@ export async function approveRefund(dealId: string, sellerWallet: string): Promi
   return request<ActionResponse>("/actions/approve-refund", { dealId, sellerWallet });
 }
 
+export async function acceptDeal(dealId: string, walletAddress: string): Promise<{ success: boolean; counterpartyAcceptedAt: string }> {
+  return request<{ success: boolean; counterpartyAcceptedAt: string }>(`/api/deals/${dealId}/accept`, { walletAddress });
+}
+
+export async function declineDeal(dealId: string, walletAddress: string): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(`/api/deals/${dealId}/decline`, { walletAddress });
+}
+
 export async function confirm(payload: ConfirmPayload) {
   let actorWallet = payload.actorWallet;
   if (!actorWallet) {
@@ -281,6 +289,8 @@ export const actionsService = {
   confirmDelivery,
   approveRefund,
   confirm,
+  acceptDeal,
+  declineDeal,
   submitEvidence,
   fetchEvidence,
   triggerArbitration,
