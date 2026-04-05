@@ -80,6 +80,14 @@ const Profile: React.FC = () => {
         setDisplayName(data.displayName || "");
         setEmailAddress(data.emailAddress || "");
         setAvatarUrl(data.avatarUrl || null);
+
+        // Validate saved avatar URL so it actually renders
+        if (data.avatarUrl) {
+          const img = new Image();
+          img.onload = () => setAvatarValid(true);
+          img.onerror = () => { setAvatarValid(false); setAvatarUrl(null); };
+          img.src = data.avatarUrl;
+        }
       } catch (error) {
         console.error('Failed to fetch profile:', error);
         if (!authUser?.displayName && !authUser?.emailAddress) {
@@ -128,12 +136,14 @@ const Profile: React.FC = () => {
     }
   }, [displayName]);
 
-  // Show permission prompt when email is valid and profile is being set up
+  // Show permission prompt when email changes and is valid
   const handleEmailBlur = () => {
     const trimmed = emailAddress.trim();
     if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return;
 
-    if (isProfileIncomplete && !permissionGranted) {
+    // Show prompt if email changed from what's saved and user hasn't already granted
+    const emailChanged = trimmed !== (currentEmail || "");
+    if ((isProfileIncomplete || emailChanged) && !permissionGranted) {
       setShowPermissionPrompt(true);
     }
   };
@@ -152,20 +162,18 @@ const Profile: React.FC = () => {
   const handleSave = async () => {
     if (!publicKey) return;
 
-    if (requireSetup || isProfileIncomplete) {
-      if (!displayName.trim()) {
-        toast.error('Display name is required');
-        return;
-      }
-      if (!emailAddress.trim()) {
-        toast.error('Email address is required');
-        return;
-      }
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(emailAddress.trim())) {
-        toast.error('Please enter a valid email address');
-        return;
-      }
+    if (!displayName.trim()) {
+      toast.error('Display name is required');
+      return;
+    }
+    if (!emailAddress.trim()) {
+      toast.error('Email address is required');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailAddress.trim())) {
+      toast.error('Please enter a valid email address');
+      return;
     }
 
     setIsSaving(true);
@@ -181,7 +189,10 @@ const Profile: React.FC = () => {
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to update profile');
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({ error: 'Failed to update profile' }));
+        throw new Error(errData.error || 'Failed to update profile');
+      }
 
       const updated = await response.json() as UserProfile;
       setProfile(updated);
@@ -192,12 +203,13 @@ const Profile: React.FC = () => {
       toast.success('Profile updated successfully');
       await refreshUser();
 
-      if (requireSetup || isProfileIncomplete) {
-        setTimeout(() => {
-          const returnTo = searchParams.get('returnTo');
-          const redirectTo = returnTo || (location.state as any)?.from?.pathname || '/dashboard';
-          navigate(redirectTo, { replace: true });
-        }, 500);
+      // Redirect after setup — use the actual saved data, not stale render state
+      const wasSetup = requireSetup || !currentDisplayName || !currentEmail;
+      const nowComplete = !!(updated.displayName && updated.emailAddress);
+      if (wasSetup && nowComplete) {
+        const returnTo = searchParams.get('returnTo');
+        const redirectTo = returnTo || (location.state as any)?.from?.pathname || '/dashboard';
+        navigate(redirectTo, { replace: true });
       }
     } catch (error) {
       console.error('Failed to update profile:', error);
