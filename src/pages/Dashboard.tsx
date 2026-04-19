@@ -1,8 +1,27 @@
 import { FC, useMemo, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
-import { Banknote, Gavel, CheckCircle2, ArrowRightCircle, Repeat, RefreshCw, Wallet, Globe, DollarSign, AlertCircle } from "lucide-react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import {
+  ArrowRight,
+  Plus,
+  Lock,
+  DollarSign,
+  Shield,
+  Wallet,
+  RefreshCw,
+  Sparkles,
+  AlertTriangle,
+  CheckCircle2,
+  Send,
+  FileText,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Scale,
+  Clock,
+  AlertCircle,
+  Trash2,
+} from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,68 +32,102 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import HeaderBar from "@/components/organisms/HeaderBar";
-import DashboardGreeting from "@/components/organisms/DashboardGreeting";
-import DealActions from "@/components/molecules/DealActions";
-import ActiveDealsGrid from "@/components/organisms/ActiveDealsGrid";
-import ReputationScoreCard from "@/components/molecules/ReputationScoreCard";
-import NotificationsList from "@/components/organisms/NotificationsList";
-import RecentActivityTimeline from "@/components/organisms/RecentActivityTimeline";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { useAuth } from "@/context/AuthContext"; // Use unified AuthContext
-import { useModalContext } from "@/context/ModalContext";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useMyDeals, useRecentDealEvents, statusToBadge, useDeleteDeal } from "@/hooks/useDeals";
-import { useEvent } from "@/hooks/useEvent";
-import { getConfiguredCluster } from '@/utils/solana';
-import { USDC_MINT } from '@/lib/config';
-import type { DealCardProps } from "@/components/molecules/DealCard";
+import PageLayout from "@/components/layouts/PageLayout";
 import WalletConnectModal from "@/components/modals/WalletConnectModal";
+import { useAuth } from "@/context/AuthContext";
+import { useModalContext } from "@/context/ModalContext";
+import { useMyDeals, useRecentDealEvents, useDeleteDeal, DealRow, DealEventRow } from "@/hooks/useDeals";
+import { useEvent } from "@/hooks/useEvent";
+import { getConfiguredCluster } from "@/utils/solana";
+import { USDC_MINT } from "@/lib/config";
+import { formatUsd, shortAddress } from "@/utils/format";
 
-const INSTRUCTION_NOTIFICATION_MAP: Record<string, { icon: JSX.Element; colorClass: string }> = {
-  FUND: { icon: <Banknote className="text-green-600 w-7 h-7" aria-hidden />, colorClass: "text-green-600" },
-  RELEASE: { icon: <ArrowRightCircle className="text-blue-600 w-7 h-7" aria-hidden />, colorClass: "text-blue-600" },
-  REFUND: { icon: <Repeat className="text-purple-600 w-7 h-7" aria-hidden />, colorClass: "text-purple-600" },
-  OPEN_DISPUTE: { icon: <Gavel className="text-red-600 w-7 h-7" aria-hidden />, colorClass: "text-red-600" },
-  RESOLVE: { icon: <CheckCircle2 className="text-amber-600 w-7 h-7" aria-hidden />, colorClass: "text-amber-600" },
+type Tone = "primary" | "secondary" | "accent" | "success" | "destructive" | "muted";
+
+const STATUS_META: Record<string, { label: string; tone: Tone; next: string }> = {
+  INIT: { label: "Awaiting fund", tone: "primary", next: "Needs funding" },
+  INITIATED: { label: "Awaiting fund", tone: "primary", next: "Needs funding" },
+  FUNDED: { label: "In escrow", tone: "accent", next: "Inspection window" },
+  DELIVERED: { label: "Delivered", tone: "secondary", next: "Awaiting release" },
+  DISPUTED: { label: "Disputed", tone: "destructive", next: "Evidence needed" },
+  RESOLVED: { label: "Resolved", tone: "secondary", next: "Ready to claim" },
+  RELEASED: { label: "Released", tone: "success", next: "Completed" },
+  REFUNDED: { label: "Refunded", tone: "success", next: "Completed" },
 };
 
-const fallbackActivities = [
-  {
-    id: "placeholder-fund",
-    icon: <CheckCircle2 />, // styled via colorClass
-    title: "Funding events will appear after transactions confirm.",
-    date: new Date().toLocaleDateString(),
-    colorClass: "text-green-600",
-  },
-  {
-    id: "placeholder-release",
-    icon: <ArrowRightCircle />,
-    title: "Release confirmations are tracked automatically.",
-    date: new Date().toLocaleDateString(),
-    colorClass: "text-blue-600",
-  },
-  {
-    id: "placeholder-refund",
-    icon: <Repeat />,
-    title: "Refunds will be listed once executed.",
-    date: new Date().toLocaleDateString(),
-    colorClass: "text-purple-600",
-  },
-];
+const INSTRUCTION_META: Record<string, { label: string; icon: React.ElementType; tone: Tone }> = {
+  INITIATE: { label: "Deal created", icon: FileText, tone: "muted" },
+  FUND: { label: "Funds locked", icon: Lock, tone: "primary" },
+  RELEASE: { label: "Funds released", icon: ArrowUpRight, tone: "success" },
+  REFUND: { label: "Refund processed", icon: ArrowDownLeft, tone: "secondary" },
+  OPEN_DISPUTE: { label: "Dispute opened", icon: AlertTriangle, tone: "destructive" },
+  RESOLVE: { label: "AI verdict issued", icon: Scale, tone: "accent" },
+};
 
-import { shortAddress } from "@/utils/format";
+function pillTone(tone: Tone): string {
+  switch (tone) {
+    case "success":
+      return "bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success))] border-[hsl(var(--success)/0.3)]";
+    case "destructive":
+      return "bg-destructive/10 text-destructive border-destructive/25";
+    case "secondary":
+      return "bg-secondary/10 text-secondary border-secondary/25";
+    case "accent":
+      return "bg-accent/10 text-[hsl(185_90%_28%)] border-accent/35";
+    case "muted":
+      return "bg-muted text-muted-foreground border-border";
+    default:
+      return "bg-primary/10 text-primary border-primary/20";
+  }
+}
+
+function iconTone(tone: Tone): string {
+  switch (tone) {
+    case "success":
+      return "bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success))]";
+    case "destructive":
+      return "bg-destructive/10 text-destructive";
+    case "secondary":
+      return "bg-secondary/10 text-secondary";
+    case "accent":
+      return "bg-accent/10 text-[hsl(185_90%_28%)]";
+    case "muted":
+      return "bg-muted text-muted-foreground";
+    default:
+      return "bg-primary/10 text-primary";
+  }
+}
+
+function timeShort(dateStr?: string): string {
+  if (!dateStr) return "";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d`;
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function timeUntil(dateStr?: string | null): string {
+  if (!dateStr) return "—";
+  const diff = new Date(dateStr).getTime() - Date.now();
+  if (diff <= 0) return "Overdue";
+  const hours = Math.floor(diff / 3600000);
+  if (hours < 48) return `${hours}h left`;
+  const days = Math.floor(hours / 24);
+  return `${days}d left`;
+}
 
 const Dashboard: FC = () => {
   const navigate = useNavigate();
-  const { publicKey, connected, disconnect, wallet } = useWallet();
+  const { publicKey, connected, wallet } = useWallet();
   const { connection } = useConnection();
   const { trackEvent } = useEvent();
-
-  // Use unified AuthContext
-  const { isAuthenticated, isLoading: isAuthLoading, user: authUser, error: authError, login: retryAuth } = useAuth();
+  const { isAuthenticated, isLoading: isAuthLoading, user: authUser } = useAuth();
+  const { openWalletModal } = useModalContext();
 
   const [solBalance, setSolBalance] = useState<number | null>(null);
   const [usdcBalance, setUsdcBalance] = useState<number | null>(null);
@@ -85,42 +138,29 @@ const Dashboard: FC = () => {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const address = publicKey?.toBase58();
-  // Use display name from profile (set during profile creation), fallback to name, then "User"
-  const userName = authUser?.displayName || authUser?.name || "User";
+  const userName = authUser?.displayName || authUser?.name || "there";
+  const firstName = userName.split(/\s+/)[0] ?? userName;
 
-  // Check if wallet connection is required but missing
-  const needsWalletConnection = isAuthenticated && !connected && !publicKey;
-  
-  // Get modal context for opening wallet modal
-  const { openWalletModal } = useModalContext();
-
-  // Track wallet connection events
   useEffect(() => {
     if (connected && publicKey) {
-      trackEvent('wallet_connected', {
+      trackEvent("wallet_connected", {
         wallet_type: wallet?.adapter?.name,
         network: cluster,
-        wallet_address: publicKey.toString()
+        wallet_address: publicKey.toString(),
       });
     }
   }, [connected, publicKey, wallet, cluster, trackEvent]);
 
-  // When wallet connects, dismiss the connect modal
   useEffect(() => {
     if (connected) setShowConnectModal(false);
   }, [connected]);
 
-  // Fetch wallet balances
   const fetchWalletData = async () => {
     if (!publicKey || !connected) return;
-
     setIsBalanceLoading(true);
     try {
-      // Fetch SOL balance
-      const solBal = await connection.getBalance(publicKey);
-      setSolBalance(solBal / LAMPORTS_PER_SOL);
-
-      // Fetch USDC balance
+      const sol = await connection.getBalance(publicKey);
+      setSolBalance(sol / LAMPORTS_PER_SOL);
       try {
         const usdcMint = new PublicKey(USDC_MINT);
         const tokenAccounts = await connection.getParsedTokenAccountsByOwner(publicKey, { mint: usdcMint });
@@ -132,8 +172,8 @@ const Dashboard: FC = () => {
       } catch {
         setUsdcBalance(0);
       }
-    } catch (error) {
-      console.error('Error fetching wallet data:', error);
+    } catch (err) {
+      console.error("Error fetching wallet data:", err);
     } finally {
       setIsBalanceLoading(false);
     }
@@ -144,13 +184,8 @@ const Dashboard: FC = () => {
   }, [publicKey, connected, connection]);
 
   const handleRefresh = () => {
-    trackEvent('wallet_refresh', { wallet_address: publicKey?.toString() });
+    trackEvent("wallet_refresh", { wallet_address: publicKey?.toString() });
     fetchWalletData();
-  };
-
-  const handleDisconnect = () => {
-    trackEvent('wallet_disconnected', { wallet_address: publicKey?.toString() });
-    disconnect();
   };
 
   const deleteDeal = useDeleteDeal();
@@ -162,11 +197,11 @@ const Dashboard: FC = () => {
 
   const confirmDeleteDeal = async () => {
     if (!pendingDeleteId) return;
-    trackEvent('deal_delete_click', { deal_id: pendingDeleteId });
+    trackEvent("deal_delete_click", { deal_id: pendingDeleteId });
     try {
       await deleteDeal.mutateAsync(pendingDeleteId);
-    } catch (error) {
-      console.error("Failed to delete deal:", error);
+    } catch (err) {
+      console.error("Failed to delete deal:", err);
     } finally {
       setPendingDeleteId(null);
       setDeleteDialogOpen(false);
@@ -174,330 +209,333 @@ const Dashboard: FC = () => {
   };
 
   const { data: dealsData, isLoading: dealsLoading } = useMyDeals();
-  const { data: eventsData, isLoading: eventsLoading } = useRecentDealEvents(6);
+  const { data: eventsData, isLoading: eventsLoading } = useRecentDealEvents(8);
 
-  const dealCards: ReadonlyArray<DealCardProps & { id: string }> = useMemo(() => {
-    if (!address || !dealsData) return [];
-    return dealsData.deals.map((deal) => {
-      const counterparty = deal.buyer_wallet === address ? deal.seller_wallet : deal.buyer_wallet;
-      const deadline = deal.deliver_deadline ? new Date(deal.deliver_deadline).toLocaleDateString() : "—";
-      const dealId = deal.id ?? "";
-      // Use title if available, otherwise fallback to deal ID
-      const displayTitle = deal.title && deal.title.trim()
-        ? deal.title.trim()
-        : (dealId ? `Deal ${dealId.slice(0, 8)}...` : "Untitled Deal");
-      return {
-        id: deal.id,
-        title: displayTitle,
-        counterparty: shortAddress(counterparty),
-        amountUsd: Number(deal.price_usd ?? 0),
-        deadline,
-        status: statusToBadge(deal.status) as DealCardProps["status"],
-      };
-    });
-  }, [address, dealsData]);
+  const deals = dealsData?.deals ?? [];
+  const totalDeals = dealsData?.total ?? deals.length;
 
-  const notifications = useMemo(() => {
-    if (!eventsData || !eventsData.length) {
-      return [{
-        id: "no-activity",
-        icon: <Wallet className="text-blue-600 w-7 h-7" aria-hidden />,
-        title: "No recent activity",
-        date: new Date().toLocaleDateString(),
-      }];
+  const stats = useMemo(() => {
+    const active = deals.filter((d) => ["INIT", "INITIATED", "FUNDED", "DELIVERED", "DISPUTED", "RESOLVED"].includes(d.status));
+    const inEscrow = active
+      .filter((d) => ["FUNDED", "DELIVERED", "DISPUTED", "RESOLVED"].includes(d.status))
+      .reduce((s, d) => s + Number(d.price_usd ?? 0), 0);
+    const completed = deals.filter((d) => ["RELEASED", "REFUNDED"].includes(d.status));
+    const lifetimeVolume = completed.reduce((s, d) => s + Number(d.price_usd ?? 0), 0);
+    const pendingReview = deals.find((d) => d.status === "FUNDED" || d.status === "DELIVERED" || d.status === "RESOLVED");
+    return { active, inEscrow, completed, lifetimeVolume, pendingReview };
+  }, [deals]);
+
+  const featuredDeal: DealRow | undefined = useMemo(() => {
+    return (
+      deals.find((d) => d.status === "RESOLVED") ||
+      deals.find((d) => d.status === "DELIVERED") ||
+      deals.find((d) => d.status === "FUNDED") ||
+      deals.find((d) => d.status === "DISPUTED") ||
+      deals.find((d) => d.status === "INIT" || d.status === "INITIATED")
+    );
+  }, [deals]);
+
+  const greetingHint = useMemo(() => {
+    if (!deals.length) return "Welcome to Artha — create your first escrow deal to get started.";
+    if (stats.pendingReview) {
+      return `You have ${stats.active.length} active ${stats.active.length === 1 ? "deal" : "deals"}. ${stats.pendingReview.title || "One deal"} needs your attention.`;
     }
-    return eventsData.slice(0, 5).map((evt) => {
-      const instruction = (evt.instruction || "unknown").toUpperCase();
-      const mapping = INSTRUCTION_NOTIFICATION_MAP[instruction] || {
-        icon: <CheckCircle2 className="text-gray-600 w-7 h-7" aria-hidden />,
-        colorClass: "text-gray-600",
-      };
-      const txSig = evt.tx_sig ?? "";
-      return {
-        id: evt.id,
-        icon: mapping.icon,
-        title: `${instruction} confirmed (${txSig.slice(0, 6)}…)`,
-        date: evt.created_at ? new Date(evt.created_at).toLocaleString() : "",
-      };
-    });
-  }, [eventsData]);
+    if (stats.active.length) return `${stats.active.length} active ${stats.active.length === 1 ? "deal" : "deals"} in progress. Nothing needs your sign-off right now.`;
+    return "All clear — no active deals right now.";
+  }, [deals.length, stats]);
 
-  const recentActivities = useMemo(() => {
-    if (!eventsData || !eventsData.length) return fallbackActivities;
-    return eventsData.map((evt) => {
-      const instruction = (evt.instruction || "unknown").toUpperCase();
-      const icon = instruction === "FUND" ? <CheckCircle2 /> : instruction === "RELEASE" ? <ArrowRightCircle /> : <Repeat />;
-      const colorClass = instruction === "FUND" ? "text-green-600" : instruction === "RELEASE" ? "text-blue-600" : "text-purple-600";
-      const txSig = evt.tx_sig ?? "";
-      return {
-        id: evt.id,
-        icon,
-        title: `${instruction} confirmed (${txSig.slice(0, 6)}…)`,
-        date: evt.created_at ? new Date(evt.created_at).toLocaleString() : "",
-        colorClass,
-      };
-    });
-  }, [eventsData]);
+  const reputationScore = authUser?.reputationScore ?? 0;
+  const reputationPct = Math.max(0, Math.min(100, reputationScore));
+  const reputationLabel = reputationScore >= 80 ? "Trusted" : reputationScore >= 50 ? "Established" : reputationScore > 0 ? "New" : "Unrated";
+
+  const activity: DealEventRow[] = eventsData?.slice(0, 5) ?? [];
 
   return (
-    <div
-      className="relative flex h-auto min-h-screen w-full flex-col bg-white group/design-root overflow-x-hidden"
-      style={{ fontFamily: 'Inter, "Noto Sans", sans-serif' }}
-    >
-      <div className="layout-container flex h-full grow flex-col">
-        <HeaderBar
-          userName={userName}
-          avatarUrl="https://lh3.googleusercontent.com/aida-public/AB6AXuAPp2y2Cah7z1UIbc18diVtfZ0q9F-TnVTK9Lvk5mOT7PdzYTfFh3EMkRB9-tVlgcKZaSE31AcQ8amNjJ1U4WJ4mqapt_s_qGDjvnMrcxbLXQAKaekEr2g11mX5hO3yesWvtsYReBCSvFZJjDJ_-L9p0z8YspicW5HtP0zDRXFKKmGoRioxwlpZ5MHgCy4nS2NSdOCb397BT3WuH6qDrJ_Wvj3KUSwT_9yNsGFv9H_w38WJt0QP3E6-H06eTnZFn-MXLyAELbjWxHzD"
-          onNotificationsClick={() => navigate("/notifications")}
-        />
+    <PageLayout>
+      <div className="relative overflow-hidden bg-background">
+        <div className="orb top-20 -right-16 w-[280px] h-[280px] bg-primary/20" />
+        <div className="orb top-[220px] right-40 w-[180px] h-[180px] bg-accent/15" style={{ animationDelay: "1.5s" }} />
 
-        <main className="gap-1 px-6 flex flex-1 justify-center py-5 bg-gray-50">
-          <div className="layout-content-container flex flex-col max-w-[920px] flex-1">
-            <DashboardGreeting name={userName} />
-
-            {/* Wallet Status Card */}
-            <Card className="mx-4 mb-6">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <Wallet className="w-5 h-5" />
-                    Wallet Status
-                  </CardTitle>
-                  <div className="flex items-center gap-2">
-                    {connected && publicKey ? (
-                      <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleRefresh}
-                          disabled={isBalanceLoading}
-                        >
-                          <RefreshCw className={`w-4 h-4 mr-2 ${isBalanceLoading ? 'animate-spin' : ''}`} />
-                          Refresh
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleDisconnect}
-                        >
-                          Disconnect
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={openWalletModal}
-                      >
-                        <Wallet className="w-4 h-4 mr-2" />
-                        Connect Wallet
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {!connected || !publicKey ? (
-                  <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <AlertCircle className="w-12 h-12 text-orange-500 mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">Wallet Not Connected</h3>
-                    <p className="text-muted-foreground mb-4">
-                      Please connect your wallet to view your balance and manage deals.
-                    </p>
-                    <Button onClick={openWalletModal} size="lg">
-                      <Wallet className="w-4 h-4 mr-2" />
-                      Connect Wallet
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Wallet</label>
-                        <p className="font-semibold">{wallet?.adapter?.name || 'Unknown'}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Network</label>
-                        <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
-                          <Globe className="w-3 h-3 mr-1" />
-                          {cluster.charAt(0).toUpperCase() + cluster.slice(1)}
-                        </Badge>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">SOL Balance</label>
-                        <div className="flex items-center gap-2">
-                          {isBalanceLoading ? (
-                            <div className="h-6 w-24 bg-muted animate-pulse rounded" />
-                          ) : (
-                            <span className="font-semibold">
-                              {solBalance?.toFixed(4) || '0.0000'} SOL
-                            </span>
-                          )}
-                        </div>
-                        {solBalance !== null && solBalance < 0.01 && (
-                          <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
-                            Low balance - you may need SOL for fees
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">USDC Balance</label>
-                        <div className="flex items-center gap-2">
-                          {isBalanceLoading ? (
-                            <div className="h-6 w-24 bg-muted animate-pulse rounded" />
-                          ) : (
-                            <span className="font-semibold">
-                              {usdcBalance?.toFixed(2) || '0.00'} USDC
-                            </span>
-                          )}
-                          <DollarSign className="w-4 h-4 text-muted-foreground" />
-                        </div>
-                      </div>
-                    </div>
-
-                {/* Wallet Verification Status */}
-                <div className="mt-4 pt-4 border-t">
-                  {isAuthLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-blue-600">
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Verifying wallet ownership...</span>
-                    </div>
-                  ) : isAuthenticated ? (
-                    <div className="flex items-center gap-2 text-sm text-green-600">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Wallet verified and authenticated</span>
-                    </div>
-                  ) : authError ? (
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2 text-sm text-red-600">
-                        <span>⚠️ {authError}</span>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={retryAuth}
-                        className="w-fit"
-                      >
-                        Retry Verification
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2 text-sm text-orange-600">
-                        <span>⚠️ Wallet connected but not authenticated</span>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={retryAuth}
-                        className="w-fit"
-                      >
-                        Verify Now
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-
-            <DealActions onCreateEscrow={() => navigate("/escrow/step1")} />
-
-            <h2 className="text-gray-900 text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
-              Your Active Deals
-            </h2>
-            {dealsLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-4">
-                {[1, 2, 3].map((i) => (
-                  <Card key={i}>
-                    <CardContent className="pt-6 space-y-3">
-                      <Skeleton className="h-5 w-3/4" />
-                      <Skeleton className="h-4 w-1/2" />
-                      <div className="flex justify-between items-center">
-                        <Skeleton className="h-6 w-20 rounded-full" />
-                        <Skeleton className="h-5 w-16" />
-                      </div>
-                      <Skeleton className="h-4 w-2/3" />
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : dealCards.length === 0 ? (
-              <div className="px-4 py-6 text-center">
-                <p className="text-sm text-muted-foreground">No deals yet. Create your first escrow deal to get started.</p>
-              </div>
-            ) : (
-              <ActiveDealsGrid deals={dealCards} onDelete={handleDeleteDeal} />
-            )}
+        <div className="relative container mx-auto max-w-7xl px-6 py-10">
+          {/* Greeting */}
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-8">
+            <div>
+              <span className="artha-pill artha-pill-secondary mb-4">
+                <Sparkles className="w-3.5 h-3.5" />
+                {stats.pendingReview ? "1 deal awaiting your sign-off" : `${totalDeals} total ${totalDeals === 1 ? "deal" : "deals"}`}
+              </span>
+              <h1 className="text-4xl md:text-5xl font-bold leading-tight tracking-tight mb-2">
+                Welcome back, <span className="gradient-text-two">{firstName}</span>.
+              </h1>
+              <p className="text-muted-foreground max-w-xl leading-relaxed">{greetingHint}</p>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => navigate("/escrow/step1")}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-border bg-card hover:bg-muted transition-colors font-semibold text-sm"
+              >
+                <Plus className="w-4 h-4" /> New deal
+              </button>
+              {stats.pendingReview && (
+                <button
+                  onClick={() => navigate(`/deal/${stats.pendingReview!.id}`)}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-primary text-primary-foreground hover:opacity-90 transition-opacity font-semibold text-sm shadow-primary-custom"
+                >
+                  Review pending <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
 
-          <aside className="layout-content-container flex flex-col w-[360px] gap-4">
-            {isAuthLoading ? (
-              <Card className="mx-4">
-                <CardContent className="pt-6 space-y-3">
-                  <Skeleton className="h-6 w-32" />
-                  <Skeleton className="h-16 w-16 rounded-full mx-auto" />
-                  <Skeleton className="h-4 w-24 mx-auto" />
-                </CardContent>
-              </Card>
-            ) : (
-              <ReputationScoreCard score={authUser?.reputationScore ?? 0} />
-            )}
-
-            <h2 className="text-gray-900 text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
-              Notifications
-            </h2>
-            {eventsLoading ? (
-              <div className="px-4 space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <Skeleton className="h-7 w-7 rounded-full shrink-0" />
-                    <div className="flex-1 space-y-1">
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-3 w-20" />
-                    </div>
-                  </div>
-                ))}
+          {/* Wallet notice */}
+          {!connected && (
+            <div className="glass-card p-6 mb-6 flex items-center gap-4">
+              <div className="icon-tile icon-tile-secondary">
+                <AlertCircle className="w-5 h-5" />
               </div>
-            ) : (
-              <NotificationsList items={notifications} />
-            )}
-
-            <h2 className="text-gray-900 text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
-              Recent Activity
-            </h2>
-            {eventsLoading ? (
-              <div className="px-4 space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <Skeleton className="h-5 w-5 rounded-full shrink-0" />
-                    <div className="flex-1 space-y-1">
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-3 w-24" />
-                    </div>
-                  </div>
-                ))}
+              <div className="flex-1">
+                <div className="font-semibold">Connect a wallet to view balances</div>
+                <div className="text-sm text-muted-foreground">Artha uses Solana wallets for secure, on-chain escrow.</div>
               </div>
-            ) : (
-              <RecentActivityTimeline items={recentActivities} />
-            )}
-          </aside>
-        </main>
+              <button
+                onClick={openWalletModal}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity shadow-primary-custom"
+              >
+                <Wallet className="w-4 h-4" /> Connect
+              </button>
+            </div>
+          )}
+
+          {/* Stat cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <StatCard
+              label="In escrow"
+              value={formatUsd(stats.inEscrow)}
+              hint={`${stats.active.length} active ${stats.active.length === 1 ? "deal" : "deals"}`}
+              icon={Lock}
+              gradient="primary"
+              tone="primary"
+            />
+            <StatCard
+              label="Lifetime volume"
+              value={formatUsd(stats.lifetimeVolume)}
+              hint={`${stats.completed.length} ${stats.completed.length === 1 ? "deal" : "deals"} completed`}
+              icon={DollarSign}
+              gradient="secondary"
+              tone="secondary"
+            />
+            <StatCard
+              label="Reputation"
+              value={reputationScore > 0 ? `${reputationScore}` : "—"}
+              hint={reputationLabel}
+              icon={Shield}
+              gradient="primary"
+              tone="accent"
+            />
+            <StatCard
+              label={connected ? "Available · USDC" : "Wallet"}
+              value={connected ? (isBalanceLoading ? "…" : `$${(usdcBalance ?? 0).toFixed(2)}`) : "Disconnected"}
+              hint={
+                connected
+                  ? `${(solBalance ?? 0).toFixed(3)} SOL · ${cluster}`
+                  : "Connect to deposit"
+              }
+              icon={Wallet}
+              gradient="secondary"
+              tone="success"
+              right={
+                connected ? (
+                  <button
+                    onClick={handleRefresh}
+                    disabled={isBalanceLoading}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label="Refresh balances"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isBalanceLoading ? "animate-spin" : ""}`} />
+                  </button>
+                ) : undefined
+              }
+            />
+          </div>
+
+          {/* Featured deal */}
+          {featuredDeal && <FeaturedDealCard deal={featuredDeal} viewerWallet={address} onOpen={() => navigate(`/deal/${featuredDeal.id}`)} />}
+
+          {/* Table + rail */}
+          <div className="grid grid-cols-1 lg:grid-cols-[1.55fr_1fr] gap-5">
+            <div className="glass-card overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <div>
+                  <h3 className="text-base font-bold">Active deals</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {totalDeals} {totalDeals === 1 ? "deal" : "deals"} · {formatUsd(stats.inEscrow + stats.lifetimeVolume)} lifetime
+                  </p>
+                </div>
+                <button
+                  onClick={() => navigate("/escrow/step1")}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border text-xs font-semibold hover:bg-muted transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" /> New
+                </button>
+              </div>
+
+              {dealsLoading ? (
+                <div className="px-6 py-12 flex items-center justify-center gap-2 text-muted-foreground">
+                  <RefreshCw className="w-4 h-4 animate-spin" /> Loading deals…
+                </div>
+              ) : deals.length === 0 ? (
+                <div className="px-6 py-14 text-center">
+                  <div className="icon-tile mx-auto mb-4">
+                    <Lock className="w-5 h-5" />
+                  </div>
+                  <p className="font-semibold mb-1">No deals yet</p>
+                  <p className="text-sm text-muted-foreground mb-5">Create your first escrow deal to lock funds on Solana.</p>
+                  <button
+                    onClick={() => navigate("/escrow/step1")}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity shadow-primary-custom"
+                  >
+                    <Plus className="w-4 h-4" /> Create a deal
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  {deals.map((d, i) => (
+                    <DealRowItem
+                      key={d.id}
+                      deal={d}
+                      viewerWallet={address}
+                      isLast={i === deals.length - 1}
+                      onOpen={() => navigate(`/deal/${d.id}`)}
+                      onDelete={() => handleDeleteDeal(d.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-5">
+              {/* Reputation card */}
+              <div className="glass-card p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-sm font-bold">Your reputation</div>
+                  <div className="icon-tile icon-tile-secondary" style={{ width: 34, height: 34 }}>
+                    <Shield className="w-4 h-4" />
+                  </div>
+                </div>
+                {isAuthLoading ? (
+                  <div className="h-10 w-24 rounded bg-muted animate-pulse mb-3" />
+                ) : (
+                  <div className="flex items-baseline gap-2 mb-3">
+                    <span className="text-4xl font-bold gradient-text-two">{reputationScore || 0}</span>
+                    <span className="text-sm text-muted-foreground">/ 100</span>
+                  </div>
+                )}
+                <div className="flex gap-0.5 mb-3">
+                  {Array.from({ length: 12 }).map((_, idx) => {
+                    const filled = idx < Math.round((reputationPct / 100) * 12);
+                    return (
+                      <div
+                        key={idx}
+                        className={`flex-1 h-6 rounded-sm ${filled ? "bg-gradient-primary" : "bg-muted"}`}
+                      />
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {reputationScore >= 80
+                    ? "You're trusted. Counterparties see your on-chain track record."
+                    : stats.completed.length > 0
+                    ? `Complete more deals to unlock reduced fees. ${Math.max(0, 25 - stats.completed.length)} away.`
+                    : "Complete your first deal to start building reputation on-chain."}
+                </p>
+              </div>
+
+              {/* Activity */}
+              <div className="glass-card p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-sm font-bold">Recent activity</div>
+                  <button
+                    onClick={() => navigate("/notifications")}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    View all
+                  </button>
+                </div>
+                {eventsLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-6 justify-center">
+                    <RefreshCw className="w-4 h-4 animate-spin" /> Loading…
+                  </div>
+                ) : activity.length === 0 ? (
+                  <div className="text-sm text-muted-foreground py-6 text-center">
+                    <Clock className="w-5 h-5 mx-auto mb-2 opacity-60" />
+                    No on-chain activity yet.
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3.5">
+                    {activity.map((evt) => {
+                      const meta = INSTRUCTION_META[evt.instruction] ?? {
+                        label: evt.instruction,
+                        icon: FileText,
+                        tone: "muted" as Tone,
+                      };
+                      const Icon = meta.icon;
+                      return (
+                        <button
+                          key={evt.id}
+                          onClick={() => navigate(`/deal/${evt.deal_id}`)}
+                          className="flex items-start gap-3 text-left hover:bg-muted/40 -mx-2 px-2 py-1.5 rounded-lg transition-colors"
+                        >
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${iconTone(meta.tone)}`}>
+                            <Icon className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold truncate">{meta.label}</div>
+                            <div className="text-xs text-muted-foreground truncate">
+                              {evt.deal_title || `Deal ${evt.deal_id.slice(0, 8)}…`}
+                              {evt.deal_amount ? ` · ${formatUsd(evt.deal_amount)}` : ""}
+                            </div>
+                          </div>
+                          <div className="text-[11px] text-muted-foreground font-mono-data whitespace-nowrap pt-0.5">
+                            {timeShort(evt.created_at)}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Quick action */}
+              <div className="glass-card p-6 flex items-start gap-4">
+                <div className="icon-tile">
+                  <Send className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="font-semibold text-sm">Start a new deal</div>
+                  <p className="text-xs text-muted-foreground mt-1 mb-3">
+                    Draft an AI-generated contract, invite the counterparty, and lock funds on Solana.
+                  </p>
+                  <button
+                    onClick={() => navigate("/escrow/step1")}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+                  >
+                    Create escrow <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Wallet Connect Modal - shown when authenticated but wallet disconnected */}
       <WalletConnectModal
         open={showConnectModal}
         onOpenChange={(open) => {
           setShowConnectModal(open);
-          if (!open && !connected) {
-            navigate('/');
-          }
+          if (!open && !connected) navigate("/");
         }}
       />
 
-      {/* Delete Deal Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -507,18 +545,190 @@ const Dashboard: FC = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setPendingDeleteId(null)}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDeleteDeal}
-              className="bg-red-600 hover:bg-red-700"
-            >
+            <AlertDialogCancel onClick={() => setPendingDeleteId(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteDeal} className="bg-destructive hover:bg-destructive/90">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </PageLayout>
+  );
+};
+
+interface StatCardProps {
+  label: string;
+  value: string;
+  hint: string;
+  icon: React.ElementType;
+  gradient: "primary" | "secondary";
+  tone: Tone;
+  right?: React.ReactNode;
+}
+
+const StatCard: FC<StatCardProps> = ({ label, value, hint, icon: Icon, gradient, tone, right }) => {
+  const valueColor =
+    tone === "accent"
+      ? "text-[hsl(185_90%_28%)]"
+      : tone === "success"
+      ? "text-[hsl(var(--success))]"
+      : tone === "secondary"
+      ? "text-secondary"
+      : "text-primary";
+
+  return (
+    <div className="glass-card p-5 flex flex-col gap-4">
+      <div className="flex items-start justify-between">
+        <div className={`icon-tile ${gradient === "secondary" ? "icon-tile-secondary" : ""}`} style={{ width: 40, height: 40 }}>
+          <Icon className="w-4 h-4" />
+        </div>
+        {right}
+      </div>
+      <div>
+        <div className="text-[11px] uppercase tracking-widest font-medium text-muted-foreground mb-1.5">{label}</div>
+        <div className={`text-2xl font-bold leading-none mb-1 font-mono-data ${valueColor}`}>{value}</div>
+        <div className="text-xs text-muted-foreground">{hint}</div>
+      </div>
+    </div>
+  );
+};
+
+interface FeaturedDealCardProps {
+  deal: DealRow;
+  viewerWallet?: string;
+  onOpen: () => void;
+}
+
+const FeaturedDealCard: FC<FeaturedDealCardProps> = ({ deal, viewerWallet, onOpen }) => {
+  const counterparty = deal.buyer_wallet === viewerWallet ? deal.seller_wallet : deal.buyer_wallet;
+  const viewerIsBuyer = viewerWallet && deal.buyer_wallet === viewerWallet;
+  const status = STATUS_META[deal.status] ?? { label: deal.status, tone: "primary" as Tone, next: "" };
+  const deadline = deal.deliver_deadline ? new Date(deal.deliver_deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—";
+  const timeLeft = timeUntil(deal.deliver_deadline);
+
+  const primaryAction = (() => {
+    if (deal.status === "FUNDED" && viewerIsBuyer) return "Confirm delivery";
+    if (deal.status === "RESOLVED") return "Claim";
+    if (deal.status === "INIT" || deal.status === "INITIATED") return viewerIsBuyer ? "Review & fund" : "Open deal";
+    return "View details";
+  })();
+
+  return (
+    <div className="mb-6">
+      <div className="gradient-hero-card p-8 relative">
+        <div className="absolute inset-0 grid-overlay-light" />
+        <div className="relative grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-8 items-center">
+          <div>
+            <div className="flex items-center gap-3 mb-3 flex-wrap">
+              <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/20 backdrop-blur text-[11px] font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                {status.label} · {timeLeft}
+              </span>
+              <span className="text-[11px] font-mono-data opacity-75">{deal.id.slice(0, 8).toUpperCase()}</span>
+            </div>
+            <div className="text-3xl font-bold leading-tight mb-2">
+              {deal.title?.trim() || `Deal ${deal.id.slice(0, 8)}…`}
+            </div>
+            <div className="text-sm opacity-80 mb-6">
+              with {shortAddress(counterparty)} · {viewerIsBuyer ? "Buyer" : "Seller"}
+            </div>
+
+            <div className="flex flex-wrap gap-8">
+              <div>
+                <div className="text-[11px] uppercase tracking-widest opacity-75 mb-1.5">Holding</div>
+                <div className="text-3xl font-bold leading-none font-mono-data">{formatUsd(deal.price_usd)}</div>
+              </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-widest opacity-75 mb-1.5">Deadline</div>
+                <div className="text-3xl font-bold leading-none">{deadline}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2.5">
+            <button
+              onClick={onOpen}
+              className="inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-full bg-white text-primary font-bold text-sm hover:opacity-90 transition-opacity"
+            >
+              <CheckCircle2 className="w-4 h-4" /> {primaryAction}
+            </button>
+            <button
+              onClick={onOpen}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-white/15 backdrop-blur text-white font-semibold text-sm hover:bg-white/20 transition-colors"
+            >
+              <AlertTriangle className="w-4 h-4" /> Something's wrong
+            </button>
+            <button
+              onClick={onOpen}
+              className="text-xs text-white/80 hover:text-white transition-colors text-center py-1"
+            >
+              View full details →
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface DealRowItemProps {
+  deal: DealRow;
+  viewerWallet?: string;
+  isLast: boolean;
+  onOpen: () => void;
+  onDelete: () => void;
+}
+
+const DealRowItem: FC<DealRowItemProps> = ({ deal, viewerWallet, isLast, onOpen, onDelete }) => {
+  const counterparty = deal.buyer_wallet === viewerWallet ? deal.seller_wallet : deal.buyer_wallet;
+  const viewerIsBuyer = viewerWallet && deal.buyer_wallet === viewerWallet;
+  const status = STATUS_META[deal.status] ?? { label: deal.status, tone: "primary" as Tone, next: "" };
+  const title = deal.title?.trim() || `Deal ${deal.id.slice(0, 8)}…`;
+  const canDelete = deal.status === "INIT" || deal.status === "INITIATED";
+
+  return (
+    <div
+      className={`grid grid-cols-[44px_1.6fr_1fr_0.9fr_1.1fr_auto] gap-4 px-6 py-4 items-center hover:bg-muted/40 transition-colors cursor-pointer ${
+        !isLast ? "border-b border-border" : ""
+      }`}
+      onClick={onOpen}
+    >
+      <div className="w-9 h-9 rounded-lg bg-muted text-primary flex items-center justify-center">
+        <FileText className="w-4 h-4" />
+      </div>
+      <div className="min-w-0">
+        <div className="text-sm font-semibold truncate">{title}</div>
+        <div className="text-[11px] font-mono-data text-muted-foreground">{deal.id.slice(0, 8).toUpperCase()}</div>
+      </div>
+      <div className="min-w-0">
+        <div className="text-sm font-medium truncate">{shortAddress(counterparty)}</div>
+        <div className="text-[11px] text-muted-foreground">{viewerIsBuyer ? "Buyer" : "Seller"}</div>
+      </div>
+      <div className="text-sm font-semibold font-mono-data">{formatUsd(deal.price_usd)}</div>
+      <div className="flex flex-col gap-1">
+        <span
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border w-fit ${pillTone(status.tone)}`}
+        >
+          <span className="w-1 h-1 rounded-full bg-current" />
+          {status.label}
+        </span>
+        <div className="text-[11px] text-muted-foreground">{status.next}</div>
+      </div>
+      <div className="flex items-center gap-1">
+        {canDelete && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            aria-label="Delete deal"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
+        <ArrowRight className="w-4 h-4 text-muted-foreground" />
+      </div>
     </div>
   );
 };

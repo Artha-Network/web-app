@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { VersionedTransaction } from "@solana/web3.js";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useConnection } from "@solana/wallet-adapter-react";
+import bs58 from "bs58";
 
 const decodeBase64 = (value: string) => {
   const binary = atob(value);
@@ -51,7 +52,12 @@ export function useWalletTransactions() {
 
       // Sign the transaction (wallet adds its signature)
       const signedTx = await signTransaction(tx);
-      
+
+      // Pre-compute the on-chain signature so we can recover from "already processed"
+      const expectedSignature = signedTx.signatures[0]?.length
+        ? bs58.encode(signedTx.signatures[0])
+        : null;
+
       try {
         // Send the signed transaction and get signature
         const signature = await connection.sendRawTransaction(signedTx.serialize(), {
@@ -68,29 +74,42 @@ export function useWalletTransactions() {
 
         return signature;
       } catch (err: any) {
-        // Log error details for debugging
         const errorMessage = err?.message || '';
-        const errorLogs = err?.logs || [];
-        
+
+        // "This transaction has already been processed" means the signed bytes
+        // were already submitted in a prior attempt and recorded on chain.
+        // Recover by checking the on-chain status of the known signature.
+        if (expectedSignature && /already been processed/i.test(errorMessage)) {
+          try {
+            const status = await connection.getSignatureStatus(expectedSignature, {
+              searchTransactionHistory: true,
+            });
+            if (status?.value && !status.value.err) {
+              // The original tx succeeded — proceed as if this attempt sent it.
+              return expectedSignature;
+            }
+            if (status?.value?.err) {
+              throw new Error(
+                `Previous transaction was rejected on-chain (${JSON.stringify(status.value.err)}). Please refresh the page and start a new deal.`
+              );
+            }
+          } catch (statusErr) {
+            console.error('Failed to recover signature status:', statusErr);
+          }
+        }
+
         try {
-          // Best-effort: log simulation details to help debugging
           if (typeof err.getLogs === 'function') {
-            // eslint-disable-next-line no-console
             console.error('Transaction simulation failed:', await err.getLogs(connection));
           } else if (err.logs) {
-            // eslint-disable-next-line no-console
             console.error('Transaction simulation failed:', err.logs);
           } else {
-            // eslint-disable-next-line no-console
             console.error('Transaction send failed:', err?.message ?? err);
           }
         } catch (logErr) {
-          // eslint-disable-next-line no-console
           console.error('Failed to extract simulation logs:', logErr);
         }
 
-        // Always throw the error - no mock signatures or silent failures
-        // This ensures blockchain errors are properly surfaced to users
         throw err;
       }
     },

@@ -5,7 +5,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
-import { Connection, PublicKey } from "@solana/web3.js";
+import { Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { useDeal, useResolution } from "@/hooks/useDeals";
 import { useAction } from "@/hooks/useAction";
 import { useEvent } from "@/hooks/useEvent";
@@ -36,6 +36,7 @@ import {
   Gavel,
   Brain,
   Timer,
+  Lock,
 } from "lucide-react";
 import { formatDateTime, formatUsd, getExplorerUrl } from "@/utils/format";
 
@@ -57,13 +58,23 @@ async function fetchTitleStatus(vin: string): Promise<{ vin: string; title_statu
 }
 
 const statusColors: Record<string, string> = {
-  INIT: "bg-gray-500",
-  FUNDED: "bg-blue-600",
-  DELIVERED: "bg-indigo-600",
-  DISPUTED: "bg-orange-600",
-  RESOLVED: "bg-purple-600",
-  RELEASED: "bg-green-600",
-  REFUNDED: "bg-red-600",
+  INIT: "bg-muted text-muted-foreground border border-border",
+  FUNDED: "bg-primary text-primary-foreground",
+  DELIVERED: "bg-secondary text-secondary-foreground",
+  DISPUTED: "bg-destructive text-destructive-foreground",
+  RESOLVED: "bg-accent text-accent-foreground",
+  RELEASED: "bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))]",
+  REFUNDED: "bg-muted text-foreground border border-border",
+};
+
+const statusLabels: Record<string, string> = {
+  INIT: "Awaiting fund",
+  FUNDED: "In escrow",
+  DELIVERED: "Delivered",
+  DISPUTED: "Disputed",
+  RESOLVED: "AI verdict issued",
+  RELEASED: "Released",
+  REFUNDED: "Refunded",
 };
 
 // Fetch USDC token balance for a wallet
@@ -126,6 +137,22 @@ const DealOverview: React.FC = () => {
   });
   const dealAmount = Number(deal?.price_usd ?? 0);
   const hasInsufficientUsdc = shouldCheckBalance && usdcBalance !== undefined && usdcBalance >= 0 && usdcBalance < dealAmount;
+
+  // SOL balance check — needed for tx fees + potential ATA rent on fund.
+  // 0.005 SOL covers ATA creation (~0.002) + fees with headroom.
+  const MIN_SOL_FOR_FUND = 0.005;
+  const { data: solBalance } = useQuery<number>({
+    queryKey: ["sol-balance", walletAddress],
+    queryFn: async () => {
+      if (!publicKey) return 0;
+      const lamports = await connection.getBalance(publicKey, "confirmed");
+      return lamports / LAMPORTS_PER_SOL;
+    },
+    enabled: Boolean(publicKey) && isParticipant,
+    refetchInterval: 20_000,
+  });
+  const hasInsufficientSol =
+    typeof solBalance === "number" && solBalance < MIN_SOL_FOR_FUND;
 
   const canFund = Boolean(dealId) && isBuyer && deal?.status === "INIT";
   // Escrow authorization: the OTHER party must authorize fund movement.
@@ -191,7 +218,9 @@ const DealOverview: React.FC = () => {
   if (isLoading) {
     return (
       <PageLayout>
-        <div className="container mx-auto px-4 py-8 space-y-6">
+        <div className="relative overflow-hidden bg-background">
+          <div className="orb top-24 -right-16 w-[280px] h-[280px] bg-primary/20" />
+          <div className="relative container mx-auto max-w-6xl px-6 py-10 space-y-6">
           {/* Header skeleton */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -204,7 +233,7 @@ const DealOverview: React.FC = () => {
             <Skeleton className="h-9 w-24" />
           </div>
           {/* Status banner skeleton */}
-          <Card>
+          <Card className="glass-card">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -236,7 +265,7 @@ const DealOverview: React.FC = () => {
             </Card>
           </div>
           {/* Description skeleton */}
-          <Card>
+          <Card className="glass-card">
             <CardHeader><Skeleton className="h-6 w-28" /></CardHeader>
             <CardContent>
               <Skeleton className="h-4 w-full mb-2" />
@@ -244,13 +273,14 @@ const DealOverview: React.FC = () => {
             </CardContent>
           </Card>
           {/* Actions skeleton */}
-          <Card>
+          <Card className="glass-card">
             <CardHeader><Skeleton className="h-6 w-20" /></CardHeader>
             <CardContent className="flex gap-3">
               <Skeleton className="h-10 w-32" />
               <Skeleton className="h-10 w-32" />
             </CardContent>
           </Card>
+          </div>
         </div>
       </PageLayout>
     );
@@ -258,46 +288,58 @@ const DealOverview: React.FC = () => {
 
   if (!isParticipant && deal) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-2xl mx-auto text-center">
-          <Card>
-            <CardContent className="pt-6">
-              <XCircle className="w-12 h-12 mx-auto text-destructive mb-4" />
-              <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
-              <p className="text-muted-foreground mb-4">
+      <PageLayout>
+        <div className="relative overflow-hidden bg-background">
+          <div className="orb top-24 -right-16 w-[280px] h-[280px] bg-primary/20" />
+          <div className="relative container mx-auto max-w-2xl px-6 py-20">
+            <div className="glass-card p-10 text-center">
+              <div className="icon-tile mx-auto mb-5" style={{ background: "hsl(var(--destructive))" }}>
+                <XCircle className="w-5 h-5" />
+              </div>
+              <h2 className="text-2xl font-bold mb-2">Access Denied</h2>
+              <p className="text-muted-foreground mb-6">
                 You don't have permission to view this deal. Only the buyer and seller can access deal details.
               </p>
               <Link to="/deals">
-                <Button variant="outline">Back to My Deals</Button>
+                <Button variant="outline" className="rounded-full">Back to My Deals</Button>
               </Link>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
-      </div>
+      </PageLayout>
     );
   }
 
   return (
     <PageLayout>
-      <div className="container mx-auto px-4 py-8 space-y-6">
+      <div className="relative overflow-hidden bg-background">
+        <div className="orb top-24 -right-16 w-[280px] h-[280px] bg-primary/20" />
+        <div className="orb top-[420px] -left-24 w-[220px] h-[220px] bg-secondary/15" style={{ animationDelay: "1.4s" }} />
+
+        <div className="relative container mx-auto max-w-6xl px-6 py-10 space-y-6">
 
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/deals">
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Deals
-              </Button>
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <Link to="/deals" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mb-4">
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Back to deals
             </Link>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">
-                {deal?.title?.trim() || `Deal ${dealId.slice(0, 8)}...`}
-              </h1>
-              <p className="text-sm text-muted-foreground font-mono">{dealId}</p>
+            <div className="flex items-center gap-3 mb-3 flex-wrap">
+              <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold ${statusColors[deal?.status ?? "INIT"]}`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                {statusLabels[deal?.status ?? "INIT"] ?? deal?.status}
+              </span>
+              <span className="text-xs font-mono-data text-muted-foreground">{dealId.slice(0, 8).toUpperCase()}</span>
             </div>
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight leading-tight mb-1">
+              {deal?.title?.trim() || <span className="gradient-text-two">Deal {dealId.slice(0, 8)}…</span>}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {formatUsd(deal?.price_usd)} USDC · with {isSeller ? (deal?.buyer?.display_name ?? "counterparty") : (deal?.seller_profile?.display_name ?? "counterparty")}
+            </p>
           </div>
-          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading} className="rounded-full">
             <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
@@ -424,6 +466,19 @@ const DealOverview: React.FC = () => {
                 </Alert>
               )}
 
+              {isBuyer && hasInsufficientSol && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    <p className="font-semibold">Insufficient SOL for transaction fees</p>
+                    <p>
+                      Your wallet has <strong>{solBalance?.toFixed(4) ?? "0"} SOL</strong>.
+                      You need at least <strong>{MIN_SOL_FOR_FUND} SOL</strong> to cover network fees and account rent.
+                    </p>
+                  </AlertDescription>
+                </Alert>
+              )}
+
               {isBuyer && (
                 <Alert>
                   <AlertCircle className="h-4 w-4" />
@@ -441,7 +496,7 @@ const DealOverview: React.FC = () => {
                 {isBuyer ? (
                   <Button
                     className="flex-1 bg-green-600 hover:bg-green-700"
-                    disabled={fundAction.isPending || hasInsufficientUsdc}
+                    disabled={fundAction.isPending || hasInsufficientUsdc || hasInsufficientSol}
                     onClick={() => handleAction('fund')}
                   >
                     {fundAction.isPending ? (
@@ -537,9 +592,21 @@ const DealOverview: React.FC = () => {
                     </AlertDescription>
                   </Alert>
                 )}
+                {hasInsufficientSol && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      <p className="font-semibold">Insufficient SOL for transaction fees</p>
+                      <p>
+                        Your wallet has <strong>{solBalance?.toFixed(4) ?? "0"} SOL</strong>.
+                        You need at least <strong>{MIN_SOL_FOR_FUND} SOL</strong> to cover network fees and account rent.
+                      </p>
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <Button
                   className="bg-green-600 hover:bg-green-700"
-                  disabled={fundAction.isPending || hasInsufficientUsdc}
+                  disabled={fundAction.isPending || hasInsufficientUsdc || hasInsufficientSol}
                   onClick={() => handleAction('fund')}
                 >
                   {fundAction.isPending ? (
@@ -554,7 +621,7 @@ const DealOverview: React.FC = () => {
         )}
 
         {/* Status Banner */}
-        <Card>
+        <Card className="glass-card">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -576,7 +643,7 @@ const DealOverview: React.FC = () => {
         {/* Deal Details */}
         <div className="grid gap-6 md:grid-cols-2">
           {/* Participants */}
-          <Card>
+          <Card className="glass-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <User className="w-5 h-5" />
@@ -612,7 +679,7 @@ const DealOverview: React.FC = () => {
           </Card>
 
           {/* Timeline & Deadlines */}
-          <Card>
+          <Card className="glass-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Clock className="w-5 h-5" />
@@ -648,7 +715,7 @@ const DealOverview: React.FC = () => {
 
         {/* Description */}
         {deal?.description && (
-          <Card>
+          <Card className="glass-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <FileText className="w-5 h-5" />
@@ -663,7 +730,7 @@ const DealOverview: React.FC = () => {
 
         {/* Vehicle Details (from car metadata) */}
         {deal?.metadata && (deal.metadata as Record<string, unknown>).year && (
-          <Card>
+          <Card className="glass-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Car className="w-5 h-5" />
@@ -804,7 +871,7 @@ const DealOverview: React.FC = () => {
 
         {/* AI-Generated Contract — visible to both parties at every stage */}
         {deal?.contract && (
-          <Card>
+          <Card className="glass-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <FileText className="w-5 h-5 text-purple-600" />
@@ -824,7 +891,7 @@ const DealOverview: React.FC = () => {
 
         {/* VIN / Vehicle Title Status */}
         {deal?.vin && (
-          <Card>
+          <Card className="glass-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Car className="w-5 h-5" />
@@ -866,7 +933,7 @@ const DealOverview: React.FC = () => {
         )}
 
         {/* Available Actions */}
-        <Card>
+        <Card className="glass-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Shield className="w-5 h-5" />
@@ -946,7 +1013,7 @@ const DealOverview: React.FC = () => {
           <DmvChecklistCard />
         )}
 
-        <Card>
+        <Card className="glass-card">
           <CardHeader>
             <CardTitle>Transaction History</CardTitle>
             <CardDescription>On-chain events for this deal (newest first).</CardDescription>
@@ -982,6 +1049,7 @@ const DealOverview: React.FC = () => {
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
     </PageLayout>
   );

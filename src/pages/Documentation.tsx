@@ -22,16 +22,22 @@ import {
   Users,
   Globe,
   Info,
+  Sparkles,
 } from "lucide-react";
 
 const Documentation = () => {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="relative min-h-screen bg-background overflow-hidden">
+      {/* Decorative orbs */}
+      <div className="orb top-24 -right-16 w-[300px] h-[300px] bg-primary/20" />
+      <div className="orb top-[360px] -left-24 w-[240px] h-[240px] bg-secondary/15" style={{ animationDelay: "1.4s" }} />
+      <div className="orb top-[900px] right-10 w-[200px] h-[200px] bg-accent/15" style={{ animationDelay: "2.2s" }} />
+
       {/* Navigation */}
-      <nav className="border-b border-border">
+      <nav className="relative border-b border-border/60 bg-background/70 backdrop-blur">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <Link to="/" className="text-2xl font-bold text-primary">
+            <Link to="/" className="text-2xl font-bold gradient-text-two">
               Artha Network
             </Link>
             <Link to="/">
@@ -44,12 +50,16 @@ const Documentation = () => {
         </div>
       </nav>
 
-      <div className="container mx-auto px-6 py-12">
+      <div className="relative container mx-auto px-6 py-12">
         <div className="max-w-5xl mx-auto">
           {/* Header */}
           <div className="text-center mb-12">
-            <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-              Learn & Documentation
+            <span className="artha-pill artha-pill-secondary mb-5 mx-auto">
+              <Sparkles className="w-3.5 h-3.5" />
+              Learn &amp; documentation
+            </span>
+            <h1 className="text-4xl md:text-5xl font-bold mb-4 gradient-text-full">
+              Learn &amp; Documentation
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               Everything you need to know about using Artha Network, crypto wallets, and secure escrow transactions.
@@ -57,7 +67,7 @@ const Documentation = () => {
           </div>
 
           <Tabs defaultValue="getting-started" className="space-y-8">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 glass-card p-1 h-auto">
               <TabsTrigger value="getting-started">Getting Started</TabsTrigger>
               <TabsTrigger value="how-it-works">How It Works</TabsTrigger>
               <TabsTrigger value="crypto-basics">Crypto Basics</TabsTrigger>
@@ -73,7 +83,7 @@ const Documentation = () => {
                 </AlertDescription>
               </Alert>
 
-              <Card>
+              <Card className="glass-card">
                 <CardHeader>
                   <CardTitle className="text-2xl">Welcome to Artha Network</CardTitle>
                   <CardDescription>
@@ -83,29 +93,29 @@ const Documentation = () => {
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid md:grid-cols-3 gap-6">
-                    <div className="flex flex-col items-center text-center p-4 rounded-lg bg-muted/50">
-                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-                        <Lock className="w-6 h-6 text-primary" />
+                    <div className="flex flex-col items-center text-center p-5 rounded-xl bg-muted/40 border border-border/60">
+                      <div className="icon-tile mb-3" style={{ width: 44, height: 44 }}>
+                        <Lock className="w-5 h-5" />
                       </div>
                       <h3 className="font-semibold mb-1">Non-Custodial</h3>
                       <p className="text-sm text-muted-foreground">
                         Artha never holds your money. Funds sit in an on-chain escrow vault that only the smart contract can release.
                       </p>
                     </div>
-                    <div className="flex flex-col items-center text-center p-4 rounded-lg bg-muted/50">
-                      <div className="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center mb-3">
-                        <Brain className="w-6 h-6 text-secondary" />
+                    <div className="flex flex-col items-center text-center p-5 rounded-xl bg-muted/40 border border-border/60">
+                      <div className="icon-tile icon-tile-secondary mb-3" style={{ width: 44, height: 44 }}>
+                        <Brain className="w-5 h-5" />
                       </div>
                       <h3 className="font-semibold mb-1">AI Arbitration</h3>
                       <p className="text-sm text-muted-foreground">
                         If there's a dispute, our AI reviews evidence from both sides and issues a binding verdict — no lawyers needed.
                       </p>
                     </div>
-                    <div className="flex flex-col items-center text-center p-4 rounded-lg bg-muted/50">
-                      <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center mb-3">
-                        <Zap className="w-6 h-6 text-accent" />
+                    <div className="flex flex-col items-center text-center p-5 rounded-xl bg-muted/40 border border-border/60">
+                      <div className="icon-tile mb-3" style={{ width: 44, height: 44, background: "hsl(var(--accent))" }}>
+                        <Zap className="w-5 h-5" />
                       </div>
-                      <h3 className="font-semibold mb-1">Fast & Cheap</h3>
+                      <h3 className="font-semibold mb-1">Fast &amp; Cheap</h3>
                       <p className="text-sm text-muted-foreground">
                         Solana transactions confirm in under a second and cost less than $0.01. Platform fee is only 0.5%.
                       </p>
@@ -114,7 +124,7 @@ const Documentation = () => {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="glass-card">
                 <CardHeader>
                   <CardTitle>Quick Start Guide</CardTitle>
                   <CardDescription>Get your first deal running in 5 minutes</CardDescription>
@@ -155,7 +165,7 @@ const Documentation = () => {
                     ].map((item) => (
                       <div key={item.step} className="flex gap-4">
                         <div className="flex flex-col items-center">
-                          <div className="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center font-bold shrink-0">
+                          <div className="w-10 h-10 rounded-full bg-gradient-primary text-primary-foreground flex items-center justify-center font-bold shrink-0 shadow-primary-custom">
                             {item.step}
                           </div>
                           {item.step < 5 && <div className="w-px flex-1 bg-border mt-2" />}
@@ -176,7 +186,7 @@ const Documentation = () => {
 
             {/* ==================== HOW IT WORKS ==================== */}
             <TabsContent value="how-it-works" className="space-y-8">
-              <Card>
+              <Card className="glass-card">
                 <CardHeader>
                   <CardTitle className="text-2xl">The Escrow Flow</CardTitle>
                   <CardDescription>
@@ -187,32 +197,32 @@ const Documentation = () => {
                   {[
                     {
                       status: "INIT",
-                      color: "bg-gray-500",
+                      color: "bg-muted text-muted-foreground border border-border",
                       title: "Deal Created",
                       desc: "The seller creates a deal with terms (amount, deadline, description). An AI-generated contract is reviewed by both parties. The deal is registered on the Solana blockchain.",
                     },
                     {
                       status: "FUNDED",
-                      color: "bg-blue-600",
+                      color: "bg-primary text-primary-foreground",
                       title: "Escrow Funded",
                       desc: "The buyer reviews the contract and accepts by funding the escrow. USDC is transferred from the buyer's wallet to a secure on-chain vault. The seller can now begin delivery.",
                     },
                     {
                       status: "DELIVERED",
-                      color: "bg-indigo-600",
+                      color: "bg-secondary text-secondary-foreground",
                       title: "Goods/Services Delivered",
                       desc: "The seller completes their obligations (delivers the car, finishes the service, etc.). For vehicle deals, the government title transfer is tracked automatically.",
                     },
                     {
                       status: "RELEASED",
-                      color: "bg-green-600",
+                      color: "bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))]",
                       title: "Payment Released",
                       desc: "Once satisfied, the buyer releases the escrowed funds to the seller. The transaction is final and recorded on-chain. Both parties receive a completion email.",
                     },
                   ].map((stage, i) => (
                     <div key={stage.status} className="flex gap-4">
                       <div className="flex flex-col items-center">
-                        <Badge className={`${stage.color} text-white shrink-0`}>{stage.status}</Badge>
+                        <Badge className={`${stage.color} shrink-0 font-mono-data`}>{stage.status}</Badge>
                         {i < 3 && <div className="w-px flex-1 bg-border mt-2 min-h-[20px]" />}
                       </div>
                       <div>
@@ -224,11 +234,11 @@ const Documentation = () => {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="glass-card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Scale className="w-5 h-5 text-purple-600" />
-                    Dispute Resolution & AI Arbitration
+                    <Scale className="w-5 h-5 text-secondary" />
+                    Dispute Resolution &amp; AI Arbitration
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -243,9 +253,9 @@ const Documentation = () => {
                       { step: "AI Arbitration", desc: "Our AI arbiter (powered by Claude) analyzes all evidence and issues a verdict: RELEASE (pay seller) or REFUND (return to buyer)." },
                       { step: "Execute Verdict", desc: "The winning party can execute immediately. The losing party has 24 hours to accept or escalate to a human arbiter." },
                     ].map((item, i) => (
-                      <div key={i} className="flex gap-3 p-3 rounded-lg bg-muted/50">
-                        <div className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center shrink-0 mt-0.5">
-                          <span className="text-xs font-bold text-purple-700 dark:text-purple-300">{i + 1}</span>
+                      <div key={i} className="flex gap-3 p-3 rounded-xl bg-muted/40 border border-border/60">
+                        <div className="w-6 h-6 rounded-full bg-secondary/15 flex items-center justify-center shrink-0 mt-0.5">
+                          <span className="text-xs font-bold text-secondary">{i + 1}</span>
                         </div>
                         <div>
                           <p className="font-medium text-sm">{item.step}</p>
@@ -264,11 +274,11 @@ const Documentation = () => {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="glass-card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Shield className="w-5 h-5 text-green-600" />
-                    Security & Trust
+                    <Shield className="w-5 h-5 text-[hsl(var(--success))]" />
+                    Security &amp; Trust
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -279,9 +289,9 @@ const Documentation = () => {
                       { title: "Everything Is On-Chain", desc: "Every deal, funding event, dispute, and resolution is recorded on the Solana blockchain as a permanent, tamper-proof record." },
                       { title: "AI Is Impartial", desc: "The AI arbiter has no stake in the outcome. It analyzes evidence objectively and cannot be bribed or influenced." },
                     ].map((item, i) => (
-                      <div key={i} className="p-4 border rounded-lg">
+                      <div key={i} className="p-4 rounded-xl bg-muted/40 border border-border/60">
                         <h4 className="font-semibold text-sm mb-1 flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                          <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))] shrink-0" />
                           {item.title}
                         </h4>
                         <p className="text-xs text-muted-foreground">{item.desc}</p>
@@ -294,7 +304,7 @@ const Documentation = () => {
 
             {/* ==================== CRYPTO BASICS ==================== */}
             <TabsContent value="crypto-basics" className="space-y-8">
-              <Card>
+              <Card className="glass-card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-2xl">
                     <BookOpen className="w-6 h-6" />
@@ -328,30 +338,30 @@ const Documentation = () => {
                   </div>
 
                   {/* SOL vs USDC */}
-                  <div className="border-l-4 border-yellow-500 pl-4 space-y-2">
+                  <div className="border-l-4 border-secondary pl-4 space-y-2">
                     <h3 className="font-semibold flex items-center gap-2">
-                      <DollarSign className="w-5 h-5 text-yellow-600" />
+                      <DollarSign className="w-5 h-5 text-secondary" />
                       SOL vs USDC — Two Tokens, Two Purposes
                     </h3>
                     <div className="grid md:grid-cols-2 gap-4 mt-2">
-                      <div className="p-4 bg-yellow-50 dark:bg-yellow-950/30 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                        <h4 className="font-bold text-yellow-800 dark:text-yellow-200 mb-2">SOL (Solana)</h4>
+                      <div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
+                        <h4 className="font-bold text-primary mb-2">SOL (Solana)</h4>
                         <p className="text-sm text-muted-foreground mb-2">
                           SOL is the <strong>native token</strong> of the Solana blockchain. Think of it as "gas money" — you need a tiny bit of SOL to pay transaction fees.
                         </p>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-yellow-700 border-yellow-300">Transaction fees</Badge>
-                          <Badge variant="outline" className="text-yellow-700 border-yellow-300">~$0.001 per tx</Badge>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant="outline" className="border-primary/30 text-primary">Transaction fees</Badge>
+                          <Badge variant="outline" className="border-primary/30 text-primary">~$0.001 per tx</Badge>
                         </div>
                       </div>
-                      <div className="p-4 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-800">
-                        <h4 className="font-bold text-green-800 dark:text-green-200 mb-2">USDC (USD Coin)</h4>
+                      <div className="p-4 rounded-xl bg-[hsl(var(--success)/0.08)] border border-[hsl(var(--success)/0.3)]">
+                        <h4 className="font-bold text-[hsl(var(--success))] mb-2">USDC (USD Coin)</h4>
                         <p className="text-sm text-muted-foreground mb-2">
                           USDC is a <strong>stablecoin</strong> pegged 1:1 to the US Dollar. 1 USDC = $1 USD, always. This is the currency used in Artha deals.
                         </p>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-green-700 border-green-300">Deal currency</Badge>
-                          <Badge variant="outline" className="text-green-700 border-green-300">1 USDC = $1</Badge>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant="outline" className="border-[hsl(var(--success)/0.4)] text-[hsl(var(--success))]">Deal currency</Badge>
+                          <Badge variant="outline" className="border-[hsl(var(--success)/0.4)] text-[hsl(var(--success))]">1 USDC = $1</Badge>
                         </div>
                       </div>
                     </div>
@@ -364,9 +374,9 @@ const Documentation = () => {
                   </div>
 
                   {/* What is Blockchain */}
-                  <div className="border-l-4 border-blue-500 pl-4 space-y-2">
+                  <div className="border-l-4 border-accent pl-4 space-y-2">
                     <h3 className="font-semibold flex items-center gap-2">
-                      <Globe className="w-5 h-5 text-blue-600" />
+                      <Globe className="w-5 h-5 text-[hsl(185_90%_28%)]" />
                       What Is a Blockchain?
                     </h3>
                     <p className="text-sm text-muted-foreground">
@@ -383,9 +393,9 @@ const Documentation = () => {
                   </div>
 
                   {/* Smart Contracts */}
-                  <div className="border-l-4 border-purple-500 pl-4 space-y-2">
+                  <div className="border-l-4 border-[hsl(var(--success))] pl-4 space-y-2">
                     <h3 className="font-semibold flex items-center gap-2">
-                      <FileText className="w-5 h-5 text-purple-600" />
+                      <FileText className="w-5 h-5 text-[hsl(var(--success))]" />
                       What Are Smart Contracts?
                     </h3>
                     <p className="text-sm text-muted-foreground">
@@ -400,9 +410,9 @@ const Documentation = () => {
                   </div>
 
                   {/* Devnet vs Mainnet */}
-                  <div className="border-l-4 border-orange-500 pl-4 space-y-2">
+                  <div className="border-l-4 border-destructive pl-4 space-y-2">
                     <h3 className="font-semibold flex items-center gap-2">
-                      <AlertTriangle className="w-5 h-5 text-orange-600" />
+                      <AlertTriangle className="w-5 h-5 text-destructive" />
                       Devnet vs Mainnet
                     </h3>
                     <p className="text-sm text-muted-foreground">
@@ -421,7 +431,7 @@ const Documentation = () => {
 
             {/* ==================== FAQ ==================== */}
             <TabsContent value="faq" className="space-y-8">
-              <Card>
+              <Card className="glass-card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <HelpCircle className="w-5 h-5" />
@@ -480,20 +490,26 @@ const Documentation = () => {
                     },
                   ].map((item, i) => (
                     <div key={i} className="border-b last:border-0 pb-4 last:pb-0">
-                      <h3 className="font-semibold mb-2">{item.q}</h3>
-                      <p className="text-sm text-muted-foreground">{item.a}</p>
+                      <h3 className="font-semibold mb-2 flex items-start gap-2">
+                        <span className="text-primary mt-0.5">Q.</span>
+                        <span>{item.q}</span>
+                      </h3>
+                      <p className="text-sm text-muted-foreground pl-6">{item.a}</p>
                     </div>
                   ))}
                 </CardContent>
               </Card>
 
-              <div className="text-center py-6">
-                <p className="text-muted-foreground mb-4">Still have questions?</p>
-                <Link to="/escrow/new">
-                  <Button>
-                    Create Your First Deal <ArrowRight className="ml-2 w-4 h-4" />
-                  </Button>
-                </Link>
+              <div className="gradient-hero-card p-8 text-center relative">
+                <div className="absolute inset-0 grid-overlay-light" />
+                <div className="relative">
+                  <p className="text-white/85 mb-4">Still have questions?</p>
+                  <Link to="/escrow/new">
+                    <Button className="bg-white text-primary hover:bg-white/90 rounded-full font-bold">
+                      Create Your First Deal <ArrowRight className="ml-2 w-4 h-4" />
+                    </Button>
+                  </Link>
+                </div>
               </div>
             </TabsContent>
           </Tabs>

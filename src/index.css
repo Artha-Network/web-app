@@ -128,5 +128,116 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', -apple-system, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
 }
+
+/* Artha design system utilities — shared aesthetic across all app pages */
+
+.gradient-text-full {
+  background: linear-gradient(to right, hsl(var(--primary)), hsl(var(--secondary)), hsl(var(--accent)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+.gradient-text-two {
+  background: linear-gradient(to right, hsl(var(--primary)), hsl(var(--secondary)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.grid-overlay {
+  background-image:
+    linear-gradient(to right, hsl(var(--primary)) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(var(--primary)) 1px, transparent 1px);
+  background-size: 4rem 4rem;
+  opacity: 0.08;
+}
+.grid-overlay-light {
+  background-image:
+    linear-gradient(to right, #fff 1px, transparent 1px),
+    linear-gradient(to bottom, #fff 1px, transparent 1px);
+  background-size: 3rem 3rem;
+  opacity: 0.1;
+  pointer-events: none;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(40px);
+  pointer-events: none;
+  animation: pulseOrb 4s ease-in-out infinite;
+}
+@keyframes pulseOrb {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50%      { opacity: 0.7;  transform: scale(1.08); }
+}
+
+.artha-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  background: hsl(var(--primary) / 0.1);
+  border: 1px solid hsl(var(--primary) / 0.2);
+  color: hsl(var(--primary));
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+}
+.artha-pill-success { background: hsl(var(--success) / 0.1); border-color: hsl(var(--success) / 0.3); color: hsl(var(--success)); }
+.artha-pill-secondary { background: hsl(var(--secondary) / 0.1); border-color: hsl(var(--secondary) / 0.25); color: hsl(var(--secondary)); }
+.artha-pill-accent { background: hsl(var(--accent) / 0.12); border-color: hsl(var(--accent) / 0.35); color: hsl(185 90% 28%); }
+.artha-pill-destructive { background: hsl(var(--destructive) / 0.1); border-color: hsl(var(--destructive) / 0.25); color: hsl(var(--destructive)); }
+.artha-pill-muted { background: hsl(var(--muted)); border-color: hsl(var(--border)); color: hsl(var(--muted-foreground)); }
+
+.glass-card {
+  background: hsl(var(--card) / 0.8);
+  backdrop-filter: blur(8px);
+  border: 1px solid hsl(var(--border) / 0.6);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  transition: var(--transition-smooth);
+}
+.glass-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px -8px hsl(215 25% 15% / 0.12);
+}
+
+.icon-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--gradient-primary);
+  color: #fff;
+  box-shadow: var(--shadow-primary);
+  flex-shrink: 0;
+}
+.icon-tile-secondary { background: var(--gradient-secondary); box-shadow: var(--shadow-secondary); }
+
+.gradient-hero-card {
+  background: var(--gradient-hero);
+  border-radius: 20px;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-primary);
+}
+
+.bg-gradient-hero { background: var(--gradient-hero); }
+.bg-gradient-primary { background: var(--gradient-primary); }
+.bg-gradient-secondary { background: var(--gradient-secondary); }
+.bg-gradient-card { background: var(--gradient-card); }
+.shadow-primary-custom { box-shadow: var(--shadow-primary); }
+.shadow-secondary-custom { box-shadow: var(--shadow-secondary); }
+
+.font-mono-data { font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace; }

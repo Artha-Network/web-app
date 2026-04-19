@@ -7,6 +7,34 @@ import actionsService from "@/services/actions";
 
 type ActionKey = "initiate" | "fund" | "release" | "refund" | "openDispute" | "confirmDelivery" | "approveRefund";
 
+type ActionVerb =
+  | "INITIATE"
+  | "FUND"
+  | "RELEASE"
+  | "REFUND"
+  | "OPEN_DISPUTE"
+  | "CONFIRM_DELIVERY"
+  | "APPROVE_REFUND";
+
+function successMessageFor(verb: ActionVerb): string {
+  switch (verb) {
+    case "INITIATE":
+      return "Deal created successfully";
+    case "FUND":
+      return "Escrow funded successfully";
+    case "RELEASE":
+      return "Funds released successfully";
+    case "REFUND":
+      return "Refund claimed successfully";
+    case "OPEN_DISPUTE":
+      return "Dispute opened";
+    case "CONFIRM_DELIVERY":
+      return "Delivery confirmed — seller can now claim funds";
+    case "APPROVE_REFUND":
+      return "Refund approved — buyer can now claim funds";
+  }
+}
+
 interface InitiateVariables {
   counterparty: string;
   amount: number;
@@ -48,7 +76,7 @@ export function useAction<T extends ActionKey>(action: T) {
       let response: Awaited<ReturnType<typeof actionsService.initiate>>;
       let dealId: string;
       let actorWallet = viewerWallet;
-      let actionVerb: "INITIATE" | "FUND" | "RELEASE" | "REFUND" | "OPEN_DISPUTE" | "CONFIRM_DELIVERY" | "APPROVE_REFUND";
+      let actionVerb: ActionVerb;
 
       switch (action) {
         case "initiate": {
@@ -166,8 +194,7 @@ export function useAction<T extends ActionKey>(action: T) {
           queryClient.refetchQueries({ queryKey: ["deal", dealId] }),
         ]);
 
-        // Show success message - make it appear as if everything worked correctly
-        toast.success("Contract created successfully", { id: pendingId });
+        toast.success(successMessageFor(actionVerb), { id: pendingId });
         return { dealId, txSig };
       } catch (error) {
         const message = error instanceof Error ? error.message : "Action failed";
