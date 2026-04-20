@@ -1,58 +1,32 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEvent } from "@/hooks/useEvent";
 import { useMyDeals, DealRow } from "@/hooks/useDeals";
 import PageLayout from "@/components/layouts/PageLayout";
 import { formatUsd, shortAddress } from "@/utils/format";
-import {
-  Search,
-  Plus,
-  ArrowRight,
-  Clock,
-  DollarSign,
-  RefreshCw,
-  FileText,
-  Lock,
-  Wallet,
-  Eye,
-  User,
-  ChevronLeft,
-  ChevronRight,
-  Sparkles,
-} from "lucide-react";
+import { Search, Plus, ArrowRight, Clock, RefreshCw, Eye, User, Filter } from "lucide-react";
 
-type Tone = "primary" | "secondary" | "accent" | "success" | "destructive" | "muted";
+const CARD_SHADOW = "0 1px 4px rgba(15,27,45,0.07), 0 0 1px rgba(15,27,45,0.06)";
+const BORDER = "1px solid #e8ecf0";
 
-const STATUS_META: Record<string, { label: string; tone: Tone }> = {
-  INIT: { label: "Awaiting fund", tone: "primary" },
-  INITIATED: { label: "Awaiting fund", tone: "primary" },
-  FUNDED: { label: "In escrow", tone: "accent" },
-  DELIVERED: { label: "Delivered", tone: "secondary" },
-  DISPUTED: { label: "Disputed", tone: "destructive" },
-  RESOLVED: { label: "Resolved", tone: "secondary" },
-  RELEASED: { label: "Released", tone: "success" },
-  REFUNDED: { label: "Refunded", tone: "success" },
+const STATUS_BADGE: Record<string, { label: string; style: React.CSSProperties }> = {
+  INIT:      { label: "Init",      style: { background: "#1a3a60", color: "#fff" } },
+  INITIATED: { label: "Init",      style: { background: "#1a3a60", color: "#fff" } },
+  FUNDED:    { label: "Funded",    style: { background: "#10b981", color: "#fff" } },
+  DELIVERED: { label: "Delivered", style: { background: "#6366f1", color: "#fff" } },
+  DISPUTED:  { label: "Disputed",  style: { background: "#fee2e2", color: "#b91c1c", border: "1px solid #fca5a5" } },
+  RESOLVED:  { label: "Resolved",  style: { background: "#0ba5c0", color: "#fff" } },
+  RELEASED:  { label: "Released",  style: { background: "#10b981", color: "#fff" } },
+  REFUNDED:  { label: "Refunded",  style: { background: "#6366f1", color: "#fff" } },
 };
 
-function pillTone(tone: Tone): string {
-  switch (tone) {
-    case "success":
-      return "bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success))] border-[hsl(var(--success)/0.3)]";
-    case "destructive":
-      return "bg-destructive/10 text-destructive border-destructive/25";
-    case "secondary":
-      return "bg-secondary/10 text-secondary border-secondary/25";
-    case "accent":
-      return "bg-accent/10 text-[hsl(185_90%_28%)] border-accent/35";
-    case "muted":
-      return "bg-muted text-muted-foreground border-border";
-    default:
-      return "bg-primary/10 text-primary border-primary/20";
-  }
-}
+const STAT_COLORS = [
+  { border: "#0ba5c0", iconBg: "#e0f7fb", iconColor: "#0ba5c0" },
+  { border: "#6366f1", iconBg: "#ede9fe", iconColor: "#6366f1" },
+  { border: "#10b981", iconBg: "#d1fae5", iconColor: "#10b981" },
+  { border: "#f59e0b", iconBg: "#fef3c7", iconColor: "#f59e0b" },
+];
 
 const Deals: React.FC = () => {
   const { publicKey } = useWallet();
@@ -60,7 +34,7 @@ const Deals: React.FC = () => {
   const { trackEvent, trackPageView } = useEvent();
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(0);
   const pageSize = 12;
 
@@ -68,21 +42,19 @@ const Deals: React.FC = () => {
   const deals = dealsData?.deals ?? [];
   const total = dealsData?.total ?? 0;
 
-  useEffect(() => {
-    trackPageView("deal_list");
-  }, [trackPageView]);
+  useEffect(() => { trackPageView("deal_list"); }, [trackPageView]);
 
   const filteredDeals = useMemo(
     () =>
       deals.filter((deal) => {
-        const matchesSearch =
+        const matchSearch =
           !searchTerm ||
           deal.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
           deal.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           deal.buyer_wallet?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           deal.seller_wallet?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesStatus = statusFilter === "all" || deal.status === statusFilter;
-        return matchesSearch && matchesStatus;
+        const matchStatus = statusFilter === "all" || deal.status === statusFilter;
+        return matchSearch && matchStatus;
       }),
     [deals, searchTerm, statusFilter],
   );
@@ -90,250 +62,217 @@ const Deals: React.FC = () => {
   const stats = useMemo(() => {
     const active = deals.filter((d) =>
       ["INIT", "INITIATED", "FUNDED", "DELIVERED", "DISPUTED", "RESOLVED"].includes(d.status),
-    );
-    const inEscrow = active
-      .filter((d) => ["FUNDED", "DELIVERED", "DISPUTED", "RESOLVED"].includes(d.status))
-      .reduce((s, d) => s + Number(d.price_usd ?? 0), 0);
+    ).length;
     const asBuyer = deals.filter((d) => d.buyer_wallet === publicKey?.toBase58()).length;
-    return { active: active.length, inEscrow, asBuyer };
+    return { active, asBuyer };
   }, [deals, publicKey]);
-
-  const handleSearchChange = (value: string) => {
-    setSearchTerm(value);
-    trackEvent("filter_change", { filter_type: "search", search_term: value });
-  };
-
-  const handleStatusFilterChange = (value: string) => {
-    setStatusFilter(value);
-    setPage(0);
-    trackEvent("filter_change", { filter_type: "status", status_filter: value });
-  };
-
-  const handleRefresh = () => {
-    trackEvent("deals_refresh");
-    refetch();
-  };
 
   const userWallet = publicKey?.toBase58();
   const totalPages = Math.ceil(total / pageSize);
 
-  if (!publicKey) {
-    return (
-      <PageLayout>
-        <div className="relative overflow-hidden bg-background">
-          <div className="orb top-20 -right-16 w-[280px] h-[280px] bg-primary/20" />
-          <div className="relative container mx-auto max-w-2xl px-6 py-24 text-center">
-            <div className="icon-tile mx-auto mb-6" style={{ width: 56, height: 56 }}>
-              <Wallet className="w-6 h-6" />
-            </div>
-            <h2 className="text-2xl font-bold mb-2">Wallet required</h2>
-            <p className="text-muted-foreground mb-6">Connect your wallet to view your escrow deals.</p>
-            <Link
-              to="/dashboard"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity shadow-primary-custom"
-            >
-              Go to dashboard
-            </Link>
-          </div>
-        </div>
-      </PageLayout>
-    );
-  }
+  const statCards = [
+    { label: "Total Deals",     value: total,                icon: <Eye size={15} />,    ...STAT_COLORS[0] },
+    { label: "Filtered",        value: filteredDeals.length, icon: <Filter size={15} />, ...STAT_COLORS[1] },
+    { label: "Active",          value: stats.active,         icon: <Clock size={15} />,  ...STAT_COLORS[2] },
+    { label: "As Buyer",        value: stats.asBuyer,        icon: <User size={15} />,   ...STAT_COLORS[3] },
+  ];
 
   return (
     <PageLayout>
-      <div className="relative overflow-hidden bg-background">
-        <div className="orb top-20 -right-16 w-[280px] h-[280px] bg-primary/20" />
-        <div className="orb top-[220px] right-40 w-[180px] h-[180px] bg-accent/15" style={{ animationDelay: "1.5s" }} />
+      <div style={{ background: "#f5f7fa", minHeight: "calc(100vh - 56px)" }}>
+        <div style={{ maxWidth: 960, margin: "0 auto", padding: "40px 24px 80px" }}>
 
-        <div className="relative container mx-auto max-w-7xl px-6 py-10">
           {/* Header */}
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-8">
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 28 }}>
             <div>
-              <span className="artha-pill artha-pill-secondary mb-4">
-                <Sparkles className="w-3.5 h-3.5" />
-                {total} total {total === 1 ? "deal" : "deals"}
-              </span>
-              <h1 className="text-4xl md:text-5xl font-bold leading-tight tracking-tight mb-2">
-                Your <span className="gradient-text-two">deals</span>.
-              </h1>
-              <p className="text-muted-foreground max-w-xl leading-relaxed">
-                All your escrow transactions in one place.
-              </p>
+              <div style={{ fontSize: 26, fontWeight: 700, color: "#0f1b2d", lineHeight: 1.2 }}>My Deals</div>
+              <div style={{ fontSize: 13, color: "#6b7a90", marginTop: 3 }}>Manage your escrow transactions</div>
             </div>
-            <div className="flex gap-2 flex-wrap">
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <button
-                onClick={handleRefresh}
+                onClick={() => { trackEvent("deals_refresh"); refetch(); }}
                 disabled={isLoading}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-border bg-card hover:bg-muted transition-colors font-semibold text-sm"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                  background: "#fff", border: BORDER, color: "#0f1b2d",
+                  cursor: "pointer", opacity: isLoading ? 0.5 : 1, fontFamily: "inherit",
+                }}
               >
-                <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+                <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
                 Refresh
               </button>
               <button
                 onClick={() => navigate("/escrow/step1")}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-primary text-primary-foreground hover:opacity-90 transition-opacity font-semibold text-sm shadow-primary-custom"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                  background: "#1a3a60", color: "#fff", border: "none",
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
               >
-                <Plus className="w-4 h-4" /> New deal
+                <Plus size={14} /> New Deal
               </button>
             </div>
           </div>
 
-          {/* Stat cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="glass-card p-5 flex flex-col gap-4">
-              <div className="icon-tile" style={{ width: 40, height: 40 }}>
-                <Eye className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="text-[11px] uppercase tracking-widest font-medium text-muted-foreground mb-1.5">Total deals</div>
-                <div className="text-2xl font-bold leading-none mb-1 font-mono-data text-primary">{total}</div>
-                <div className="text-xs text-muted-foreground">All time</div>
-              </div>
+          {/* Filters */}
+          <div style={{ background: "#fff", border: BORDER, borderRadius: 12, boxShadow: CARD_SHADOW, padding: "20px 22px", marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600, color: "#0f1b2d", marginBottom: 14 }}>
+              <Filter size={14} /> Filters
             </div>
-            <div className="glass-card p-5 flex flex-col gap-4">
-              <div className="icon-tile" style={{ width: 40, height: 40 }}>
-                <Clock className="w-4 h-4" />
+            <div style={{ display: "flex", gap: 12 }}>
+              <div style={{ flex: 1, position: "relative" }}>
+                <Search size={15} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#6b7a90", pointerEvents: "none" }} />
+                <input
+                  type="text"
+                  placeholder="Search by Deal ID or wallet address..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    trackEvent("filter_change", { filter_type: "search" });
+                  }}
+                  style={{
+                    width: "100%", height: 38, padding: "0 14px 0 36px",
+                    border: "1px solid #e8ecf0", borderRadius: 8, fontSize: 13,
+                    background: "#f5f7fa", color: "#0f1b2d", outline: "none", fontFamily: "inherit",
+                  }}
+                />
               </div>
-              <div>
-                <div className="text-[11px] uppercase tracking-widest font-medium text-muted-foreground mb-1.5">Active</div>
-                <div className="text-2xl font-bold leading-none mb-1 font-mono-data text-primary">{stats.active}</div>
-                <div className="text-xs text-muted-foreground">In progress</div>
-              </div>
-            </div>
-            <div className="glass-card p-5 flex flex-col gap-4">
-              <div className="icon-tile icon-tile-secondary" style={{ width: 40, height: 40 }}>
-                <DollarSign className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="text-[11px] uppercase tracking-widest font-medium text-muted-foreground mb-1.5">In escrow</div>
-                <div className="text-2xl font-bold leading-none mb-1 font-mono-data text-secondary">{formatUsd(stats.inEscrow)}</div>
-                <div className="text-xs text-muted-foreground">Currently locked</div>
-              </div>
-            </div>
-            <div className="glass-card p-5 flex flex-col gap-4">
-              <div className="icon-tile icon-tile-secondary" style={{ width: 40, height: 40 }}>
-                <User className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="text-[11px] uppercase tracking-widest font-medium text-muted-foreground mb-1.5">As buyer</div>
-                <div className="text-2xl font-bold leading-none mb-1 font-mono-data text-secondary">{stats.asBuyer}</div>
-                <div className="text-xs text-muted-foreground">Of {total} deals</div>
-              </div>
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(0);
+                  trackEvent("filter_change", { filter_type: "status" });
+                }}
+                style={{
+                  height: 38, padding: "0 14px", border: "1px solid #e8ecf0",
+                  borderRadius: 8, fontSize: 13, background: "#f5f7fa",
+                  color: "#0f1b2d", outline: "none", cursor: "pointer",
+                  minWidth: 140, fontFamily: "inherit",
+                }}
+              >
+                <option value="all">All Status</option>
+                <option value="INIT">Awaiting Fund</option>
+                <option value="FUNDED">Funded</option>
+                <option value="DELIVERED">Delivered</option>
+                <option value="DISPUTED">Disputed</option>
+                <option value="RESOLVED">Resolved</option>
+                <option value="RELEASED">Released</option>
+                <option value="REFUNDED">Refunded</option>
+              </select>
             </div>
           </div>
 
-          {/* Filters + list */}
-          <div className="glass-card overflow-hidden">
-            {/* Filter bar */}
-            <div className="flex flex-col sm:flex-row gap-3 px-6 py-4 border-b border-border">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search by title, deal ID, or wallet…"
-                  value={searchTerm}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  className="pl-9 rounded-full border-border bg-background"
-                />
+          {/* Stats */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
+            {statCards.map((stat, i) => (
+              <div key={i} style={{
+                background: "#fff", border: BORDER, borderRadius: 12, boxShadow: CARD_SHADOW,
+                padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10,
+                position: "relative", overflow: "hidden",
+              }}>
+                <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: stat.border, borderRadius: "12px 12px 0 0" }} />
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7a90", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    {stat.label}
+                  </div>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: stat.iconBg, color: stat.iconColor, flexShrink: 0 }}>
+                    {stat.icon}
+                  </div>
+                </div>
+                <div style={{ fontSize: 26, fontWeight: 700, color: "#0f1b2d", lineHeight: 1 }}>
+                  {stat.value}
+                </div>
               </div>
-              <div className="sm:w-44">
-                <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
-                  <SelectTrigger className="rounded-full border-border bg-background">
-                    <SelectValue placeholder="All statuses" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All statuses</SelectItem>
-                    <SelectItem value="INIT">Awaiting fund</SelectItem>
-                    <SelectItem value="FUNDED">In escrow</SelectItem>
-                    <SelectItem value="DELIVERED">Delivered</SelectItem>
-                    <SelectItem value="DISPUTED">Disputed</SelectItem>
-                    <SelectItem value="RESOLVED">Resolved</SelectItem>
-                    <SelectItem value="RELEASED">Released</SelectItem>
-                    <SelectItem value="REFUNDED">Refunded</SelectItem>
-                  </SelectContent>
-                </Select>
+            ))}
+          </div>
+
+          {/* Deals list */}
+          <div style={{ background: "#fff", border: BORDER, borderRadius: 12, boxShadow: CARD_SHADOW, overflow: "hidden" }}>
+            <div style={{ padding: "20px 22px 16px", borderBottom: "1px solid #e8ecf0", display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#0f1b2d" }}>Deals</div>
+                <div style={{ fontSize: 12, color: "#6b7a90", marginTop: 2 }}>
+                  {isLoading ? "Loading deals…" : `Showing ${filteredDeals.length} of ${total} deals`}
+                </div>
               </div>
             </div>
 
-            {/* Column headers */}
-            {!isLoading && filteredDeals.length > 0 && (
-              <div className="grid grid-cols-[44px_1.6fr_1fr_0.9fr_1.1fr_auto] gap-4 px-6 py-2 border-b border-border">
-                <div />
-                <div className="text-[10px] uppercase tracking-widest font-medium text-muted-foreground">Deal</div>
-                <div className="text-[10px] uppercase tracking-widest font-medium text-muted-foreground">Counterparty</div>
-                <div className="text-[10px] uppercase tracking-widest font-medium text-muted-foreground">Amount</div>
-                <div className="text-[10px] uppercase tracking-widest font-medium text-muted-foreground">Status</div>
-                <div />
-              </div>
-            )}
-
-            {/* Rows */}
             {isLoading ? (
-              <div className="px-6 py-12 flex items-center justify-center gap-2 text-muted-foreground">
-                <RefreshCw className="w-4 h-4 animate-spin" /> Loading deals…
+              <div style={{ padding: "60px 22px", textAlign: "center", color: "#6b7a90" }}>
+                <RefreshCw size={24} className="animate-spin" style={{ margin: "0 auto 12px", display: "block" }} />
+                Loading deals…
               </div>
             ) : filteredDeals.length === 0 ? (
-              <div className="px-6 py-14 text-center">
-                <div className="icon-tile mx-auto mb-4">
-                  <Lock className="w-5 h-5" />
-                </div>
-                <p className="font-semibold mb-1">
-                  {searchTerm || statusFilter !== "all" ? "No deals match your filters" : "No deals yet"}
-                </p>
-                <p className="text-sm text-muted-foreground mb-5">
+              <div style={{ padding: "60px 22px", textAlign: "center", color: "#6b7a90" }}>
+                <Eye size={40} style={{ margin: "0 auto 14px", display: "block", color: "#c0cbd8" }} />
+                <div style={{ fontSize: 15, fontWeight: 600, color: "#0f1b2d", marginBottom: 6 }}>No deals found</div>
+                <div style={{ fontSize: 13 }}>
                   {searchTerm || statusFilter !== "all"
-                    ? "Try adjusting your search or status filter."
-                    : "Create your first escrow deal to lock funds on Solana."}
-                </p>
+                    ? "Try adjusting your filters or create a new deal."
+                    : "You haven't created any deals yet."}
+                </div>
                 {!searchTerm && statusFilter === "all" && (
                   <button
                     onClick={() => navigate("/escrow/step1")}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity shadow-primary-custom"
+                    style={{
+                      marginTop: 16, display: "inline-flex", alignItems: "center", gap: 6,
+                      padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                      background: "#1a3a60", color: "#fff", border: "none", cursor: "pointer", fontFamily: "inherit",
+                    }}
                   >
-                    <Plus className="w-4 h-4" /> Create a deal
+                    <Plus size={14} /> Create First Deal
                   </button>
                 )}
               </div>
             ) : (
-              <div>
-                {filteredDeals.map((deal, i) => (
-                  <DealRowItem
-                    key={deal.id}
-                    deal={deal}
-                    userWallet={userWallet}
-                    isLast={i === filteredDeals.length - 1}
-                    onClick={() => {
-                      trackEvent("row_open", { deal_id: deal.id });
-                      navigate(`/deal/${deal.id}`);
-                    }}
-                  />
-                ))}
-              </div>
+              filteredDeals.map((deal, i) => (
+                <DealRowItem
+                  key={deal.id}
+                  deal={deal}
+                  userWallet={userWallet}
+                  isLast={i === filteredDeals.length - 1}
+                  onClick={() => {
+                    trackEvent("row_open", { deal_id: deal.id });
+                    navigate(`/deal/${deal.id}`);
+                  }}
+                />
+              ))
             )}
           </div>
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-3 mt-5">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 20 }}>
               <button
                 onClick={() => setPage(Math.max(0, page - 1))}
                 disabled={page === 0}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-border bg-card text-sm font-semibold hover:bg-muted transition-colors disabled:opacity-40"
+                style={{
+                  padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                  background: "#fff", border: BORDER, color: "#0f1b2d",
+                  cursor: page === 0 ? "default" : "pointer", opacity: page === 0 ? 0.4 : 1, fontFamily: "inherit",
+                }}
               >
-                <ChevronLeft className="w-4 h-4" /> Previous
+                Previous
               </button>
-              <span className="text-sm text-muted-foreground">
-                Page {page + 1} of {totalPages}
-              </span>
+              <span style={{ fontSize: 13, color: "#6b7a90" }}>Page {page + 1} of {totalPages}</span>
               <button
                 onClick={() => setPage(page + 1)}
                 disabled={(page + 1) * pageSize >= total}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-border bg-card text-sm font-semibold hover:bg-muted transition-colors disabled:opacity-40"
+                style={{
+                  padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                  background: "#fff", border: BORDER, color: "#0f1b2d",
+                  cursor: (page + 1) * pageSize >= total ? "default" : "pointer",
+                  opacity: (page + 1) * pageSize >= total ? 0.4 : 1, fontFamily: "inherit",
+                }}
               >
-                Next <ChevronRight className="w-4 h-4" />
+                Next
               </button>
             </div>
           )}
+
         </div>
       </div>
     </PageLayout>
@@ -348,39 +287,62 @@ interface DealRowItemProps {
 }
 
 const DealRowItem: React.FC<DealRowItemProps> = ({ deal, userWallet, isLast, onClick }) => {
+  const [hovered, setHovered] = useState(false);
   const isBuyer = userWallet === deal.buyer_wallet;
   const counterparty = isBuyer ? deal.seller_wallet : deal.buyer_wallet;
-  const status = STATUS_META[deal.status] ?? { label: deal.status, tone: "muted" as Tone };
+  const badge = STATUS_BADGE[deal.status] ?? { label: deal.status, style: { background: "#e8ecf0", color: "#6b7a90" } };
   const title = deal.title?.trim() || `Deal ${deal.id.slice(0, 8)}…`;
+  const createdDate = deal.created_at ? new Date(deal.created_at).toLocaleDateString() : "—";
+  const deadline = deal.deliver_deadline ? new Date(deal.deliver_deadline).toLocaleDateString() : null;
 
   return (
     <div
-      className={`grid grid-cols-[44px_1.6fr_1fr_0.9fr_1.1fr_auto] gap-4 px-6 py-4 items-center hover:bg-muted/40 transition-colors cursor-pointer ${
-        !isLast ? "border-b border-border" : ""
-      }`}
       onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "flex", alignItems: "center", padding: "18px 22px",
+        borderBottom: isLast ? "none" : "1px solid #e8ecf0",
+        cursor: "pointer", gap: 16, background: hovered ? "#f9fbfc" : "#fff",
+        transition: "background 0.12s",
+      }}
     >
-      <div className="w-9 h-9 rounded-lg bg-muted text-primary flex items-center justify-center">
-        <FileText className="w-4 h-4" />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 6 }}>
+          <span style={{
+            display: "inline-flex", alignItems: "center",
+            padding: "3px 9px", borderRadius: 5,
+            fontSize: 11, fontWeight: 700, letterSpacing: "0.03em", textTransform: "uppercase",
+            ...badge.style,
+          }}>
+            {badge.label}
+          </span>
+          <span style={{ fontSize: 12, fontWeight: 500, color: "#6b7a90" }}>
+            {isBuyer ? "Buyer" : "Seller"}
+          </span>
+        </div>
+        <div style={{ fontSize: 17, fontWeight: 700, color: "#0f1b2d", marginBottom: 2 }}>
+          {formatUsd(deal.price_usd)}
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "#0f1b2d", marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {title}
+        </div>
+        <div style={{ fontSize: 12, color: "#6b7a90", lineHeight: 1.7 }}>
+          <span>ID: {deal.id.slice(0, 8)}…</span>
+          <span> · Counterparty: {shortAddress(counterparty)}</span>
+          <span> · Created: {createdDate}</span>
+          {deadline && <span> · Deadline: {deadline}</span>}
+        </div>
       </div>
-      <div className="min-w-0">
-        <div className="text-sm font-semibold truncate">{title}</div>
-        <div className="text-[11px] font-mono-data text-muted-foreground">{deal.id.slice(0, 8).toUpperCase()}</div>
-      </div>
-      <div className="min-w-0">
-        <div className="text-sm font-medium truncate">{shortAddress(counterparty)}</div>
-        <div className="text-[11px] text-muted-foreground">{isBuyer ? "Buyer" : "Seller"}</div>
-      </div>
-      <div className="text-sm font-semibold font-mono-data">{formatUsd(deal.price_usd)}</div>
-      <div>
-        <span
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border w-fit ${pillTone(status.tone)}`}
-        >
-          <span className="w-1 h-1 rounded-full bg-current" />
-          {status.label}
-        </span>
-      </div>
-      <ArrowRight className="w-4 h-4 text-muted-foreground" />
+      <ArrowRight
+        size={18}
+        style={{
+          flexShrink: 0,
+          color: hovered ? "#0ba5c0" : "#6b7a90",
+          transform: hovered ? "translateX(3px)" : "translateX(0)",
+          transition: "transform 0.15s, color 0.15s",
+        }}
+      />
     </div>
   );
 };
