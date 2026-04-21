@@ -192,9 +192,9 @@ const Deals: React.FC = () => {
             ))}
           </div>
 
-          {/* Deals panel — dark contrasting */}
+          {/* Deals panel — dark header, light body */}
           <div style={{
-            background: "#111827",
+            background: "#ffffff",
             borderRadius: 16,
             overflow: "hidden",
             boxShadow: DEALS_PANEL_SHADOW,
@@ -224,14 +224,14 @@ const Deals: React.FC = () => {
 
             {isLoading ? (
               <div style={{ padding: "60px 24px", textAlign: "center", color: "#6b7280" }}>
-                <RefreshCw size={24} className="animate-spin" style={{ margin: "0 auto 12px", display: "block", color: "#4b5563" }} />
-                <span style={{ color: "#9ca3af" }}>Loading deals…</span>
+                <RefreshCw size={24} className="animate-spin" style={{ margin: "0 auto 12px", display: "block", color: "#9ca3af" }} />
+                <span style={{ color: "#6b7280" }}>Loading deals…</span>
               </div>
             ) : filteredDeals.length === 0 ? (
               <div style={{ padding: "60px 24px", textAlign: "center" }}>
-                <Eye size={40} style={{ margin: "0 auto 14px", display: "block", color: "#374151" }} />
-                <div style={{ fontSize: 15, fontWeight: 600, color: "#f9fafb", marginBottom: 6 }}>No deals found</div>
-                <div style={{ fontSize: 13, color: "#9ca3af" }}>
+                <Eye size={40} style={{ margin: "0 auto 14px", display: "block", color: "#d1d5db" }} />
+                <div style={{ fontSize: 15, fontWeight: 600, color: "#1a1d23", marginBottom: 6 }}>No deals found</div>
+                <div style={{ fontSize: 13, color: "#6b7280" }}>
                   {searchTerm || statusFilter !== "all"
                     ? "Try adjusting your filters or create a new deal."
                     : "You haven't created any deals yet."}
@@ -242,7 +242,7 @@ const Deals: React.FC = () => {
                     style={{
                       marginTop: 16, display: "inline-flex", alignItems: "center", gap: 6,
                       height: 36, padding: "0 16px", borderRadius: 8,
-                      background: "#1e293b", color: "#fff", border: "1px solid #374151",
+                      background: "#1e293b", color: "#fff", border: "none",
                       fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
                     }}
                   >
@@ -327,7 +327,7 @@ const DealRowItem: React.FC<DealRowItemProps> = ({ deal, userWallet, isLast, onC
         display: "flex", alignItems: "center", padding: "18px 24px",
         borderBottom: isLast ? "none" : "1px solid #2d3748",
         cursor: "pointer", gap: 16,
-        background: hovered ? "#374151" : "transparent",
+        background: hovered ? "#374151" : "#ffffff",
         transition: "background 0.15s",
       }}
     >
@@ -340,17 +340,17 @@ const DealRowItem: React.FC<DealRowItemProps> = ({ deal, userWallet, isLast, onC
           }}>
             {badge.label}
           </span>
-          <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 450 }}>
+          <span style={{ fontSize: 12, color: hovered ? "#9ca3af" : "#6b7280", fontWeight: 450 }}>
             {isBuyer ? "Buyer" : "Seller"}
           </span>
         </div>
-        <div style={{ fontSize: 17, fontWeight: 600, color: "#f9fafb", marginBottom: 3, letterSpacing: "-0.2px" }}>
+        <div style={{ fontSize: 17, fontWeight: 600, color: hovered ? "#f9fafb" : "#1a1d23", marginBottom: 3, letterSpacing: "-0.2px" }}>
           {formatUsd(deal.price_usd)}
         </div>
-        <div style={{ fontSize: 13, color: "oklch(0.75 0.04 250)", fontWeight: 450, marginBottom: 5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div style={{ fontSize: 13, color: hovered ? "#9ca3af" : "#6b7280", fontWeight: 450, marginBottom: 5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {title}
         </div>
-        <div style={{ fontSize: 11, color: "#6b7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <div style={{ fontSize: 11, color: hovered ? "#6b7280" : "#9ca3af", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           <span>ID: {deal.id.slice(0, 8)}…</span>
           <span> · Counterparty: {shortAddress(counterparty)}</span>
           <span> · Created: {createdDate}</span>
@@ -361,7 +361,7 @@ const DealRowItem: React.FC<DealRowItemProps> = ({ deal, userWallet, isLast, onC
         size={16}
         style={{
           flexShrink: 0,
-          color: hovered ? "#f9fafb" : "#6b7280",
+          color: hovered ? "#f9fafb" : "#9ca3af",
           transform: hovered ? "translateX(3px)" : "translateX(0)",
           transition: "transform 0.15s, color 0.15s",
         }}
