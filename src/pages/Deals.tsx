@@ -7,26 +7,27 @@ import PageLayout from "@/components/layouts/PageLayout";
 import { formatUsd, shortAddress } from "@/utils/format";
 import { Search, Plus, ArrowRight, Clock, RefreshCw, Eye, User, Filter } from "lucide-react";
 
-const CARD_SHADOW = "0 1px 4px rgba(15,27,45,0.07), 0 0 1px rgba(15,27,45,0.06)";
-const BORDER = "1px solid #e8ecf0";
+const STAT_COLORS = [
+  { border: "#0d9488", iconBg: "#f0fdfa", iconColor: "#0d9488" },
+  { border: "#7c3aed", iconBg: "#f5f3ff", iconColor: "#7c3aed" },
+  { border: "#16a34a", iconBg: "#f0fdf4", iconColor: "#16a34a" },
+  { border: "#d97706", iconBg: "#fffbeb", iconColor: "#d97706" },
+];
 
-const STATUS_BADGE: Record<string, { label: string; style: React.CSSProperties }> = {
-  INIT:      { label: "Init",      style: { background: "#1a3a60", color: "#fff" } },
-  INITIATED: { label: "Init",      style: { background: "#1a3a60", color: "#fff" } },
-  FUNDED:    { label: "Funded",    style: { background: "#10b981", color: "#fff" } },
-  DELIVERED: { label: "Delivered", style: { background: "#6366f1", color: "#fff" } },
-  DISPUTED:  { label: "Disputed",  style: { background: "#fee2e2", color: "#b91c1c", border: "1px solid #fca5a5" } },
-  RESOLVED:  { label: "Resolved",  style: { background: "#0ba5c0", color: "#fff" } },
-  RELEASED:  { label: "Released",  style: { background: "#10b981", color: "#fff" } },
-  REFUNDED:  { label: "Refunded",  style: { background: "#6366f1", color: "#fff" } },
+// Dark-panel badge styles
+const STATUS_BADGE: Record<string, { label: string; bg: string; color: string; border: string }> = {
+  INIT:      { label: "INIT",      bg: "oklch(0.28 0.04 250)", color: "oklch(0.75 0.12 250)", border: "1px solid oklch(0.38 0.06 250)" },
+  INITIATED: { label: "INIT",      bg: "oklch(0.28 0.04 250)", color: "oklch(0.75 0.12 250)", border: "1px solid oklch(0.38 0.06 250)" },
+  FUNDED:    { label: "FUNDED",    bg: "oklch(0.28 0.10 165)", color: "oklch(0.75 0.14 165)", border: "1px solid oklch(0.40 0.12 165)" },
+  DELIVERED: { label: "DELIVERED", bg: "oklch(0.28 0.08 290)", color: "oklch(0.75 0.12 290)", border: "1px solid oklch(0.38 0.10 290)" },
+  DISPUTED:  { label: "DISPUTED",  bg: "oklch(0.28 0.10 25)",  color: "oklch(0.75 0.14 25)",  border: "1px solid oklch(0.40 0.12 25)"  },
+  RESOLVED:  { label: "RESOLVED",  bg: "oklch(0.28 0.08 165)", color: "oklch(0.75 0.12 165)", border: "1px solid oklch(0.38 0.10 165)" },
+  RELEASED:  { label: "RELEASED",  bg: "oklch(0.28 0.10 165)", color: "oklch(0.75 0.14 165)", border: "1px solid oklch(0.40 0.12 165)" },
+  REFUNDED:  { label: "REFUNDED",  bg: "oklch(0.28 0.08 290)", color: "oklch(0.75 0.12 290)", border: "1px solid oklch(0.38 0.10 290)" },
 };
 
-const STAT_COLORS = [
-  { border: "#0ba5c0", iconBg: "#e0f7fb", iconColor: "#0ba5c0" },
-  { border: "#6366f1", iconBg: "#ede9fe", iconColor: "#6366f1" },
-  { border: "#10b981", iconBg: "#d1fae5", iconColor: "#10b981" },
-  { border: "#f59e0b", iconBg: "#fef3c7", iconColor: "#f59e0b" },
-];
+const DEALS_PANEL_SHADOW =
+  "0 1px 2px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.10), 0 16px 40px rgba(0,0,0,.18), 0 28px 0 -6px #d1d5db, 0 32px 0 -6px #e5e7eb";
 
 const Deals: React.FC = () => {
   const { publicKey } = useWallet();
@@ -71,59 +72,62 @@ const Deals: React.FC = () => {
   const totalPages = Math.ceil(total / pageSize);
 
   const statCards = [
-    { label: "Total Deals",     value: total,                icon: <Eye size={15} />,    ...STAT_COLORS[0] },
-    { label: "Filtered",        value: filteredDeals.length, icon: <Filter size={15} />, ...STAT_COLORS[1] },
-    { label: "Active",          value: stats.active,         icon: <Clock size={15} />,  ...STAT_COLORS[2] },
-    { label: "As Buyer",        value: stats.asBuyer,        icon: <User size={15} />,   ...STAT_COLORS[3] },
+    { label: "Total Deals",     value: total,                icon: <Eye size={14} />,    ...STAT_COLORS[0] },
+    { label: "Filtered",        value: filteredDeals.length, icon: <Filter size={14} />, ...STAT_COLORS[1] },
+    { label: "Active",          value: stats.active,         icon: <Clock size={14} />,  ...STAT_COLORS[2] },
+    { label: "As Buyer",        value: stats.asBuyer,        icon: <User size={14} />,   ...STAT_COLORS[3] },
   ];
 
   return (
     <PageLayout>
-      <div style={{ background: "#f5f7fa", minHeight: "calc(100vh - 56px)" }}>
-        <div style={{ maxWidth: 960, margin: "0 auto", padding: "40px 24px 80px" }}>
+      <div style={{ background: "#f4f5f7", minHeight: "calc(100vh - 56px)" }}>
+        <div style={{ maxWidth: 840, margin: "0 auto", padding: "40px 24px 80px" }}>
 
           {/* Header */}
-          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 28 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 28 }}>
             <div>
-              <div style={{ fontSize: 26, fontWeight: 700, color: "#0f1b2d", lineHeight: 1.2 }}>My Deals</div>
-              <div style={{ fontSize: 13, color: "#6b7a90", marginTop: 3 }}>Manage your escrow transactions</div>
+              <div style={{ fontSize: 26, fontWeight: 600, color: "#1a1d23", letterSpacing: "-0.3px" }}>My Deals</div>
+              <div style={{ fontSize: 13, color: "#6b7280", marginTop: 3 }}>Manage your escrow transactions</div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <button
                 onClick={() => { trackEvent("deals_refresh"); refetch(); }}
                 disabled={isLoading}
                 style={{
+                  height: 36, padding: "0 14px", borderRadius: 8,
                   display: "inline-flex", alignItems: "center", gap: 6,
-                  padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 600,
-                  background: "#fff", border: BORDER, color: "#0f1b2d",
-                  cursor: "pointer", opacity: isLoading ? 0.5 : 1, fontFamily: "inherit",
+                  border: "1px solid #e4e6ea", background: "#fff",
+                  fontSize: 13, fontWeight: 500, color: "#6b7280",
+                  cursor: isLoading ? "default" : "pointer", opacity: isLoading ? 0.5 : 1,
+                  fontFamily: "inherit", transition: "background .15s, color .15s",
                 }}
               >
-                <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+                <RefreshCw size={13} className={isLoading ? "animate-spin" : ""} />
                 Refresh
               </button>
               <button
                 onClick={() => navigate("/escrow/step1")}
                 style={{
+                  height: 36, padding: "0 16px", borderRadius: 8,
                   display: "inline-flex", alignItems: "center", gap: 6,
-                  padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 600,
-                  background: "#1a3a60", color: "#fff", border: "none",
-                  cursor: "pointer", fontFamily: "inherit",
+                  border: "none", background: "#1e293b", color: "#fff",
+                  fontSize: 13, fontWeight: 500, cursor: "pointer",
+                  fontFamily: "inherit",
                 }}
               >
-                <Plus size={14} /> New Deal
+                <Plus size={13} /> New Deal
               </button>
             </div>
           </div>
 
-          {/* Filters */}
-          <div style={{ background: "#fff", border: BORDER, borderRadius: 12, boxShadow: CARD_SHADOW, padding: "20px 22px", marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600, color: "#0f1b2d", marginBottom: 14 }}>
-              <Filter size={14} /> Filters
+          {/* Filter bar */}
+          <div style={{ background: "#fff", border: "1px solid #e4e6ea", borderRadius: 12, padding: "14px 16px", marginBottom: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 500, color: "#6b7280", marginBottom: 10 }}>
+              <Filter size={12} /> Filters
             </div>
-            <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ display: "flex", gap: 10 }}>
               <div style={{ flex: 1, position: "relative" }}>
-                <Search size={15} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#6b7a90", pointerEvents: "none" }} />
+                <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", pointerEvents: "none" }} />
                 <input
                   type="text"
                   placeholder="Search by Deal ID or wallet address..."
@@ -133,9 +137,9 @@ const Deals: React.FC = () => {
                     trackEvent("filter_change", { filter_type: "search" });
                   }}
                   style={{
-                    width: "100%", height: 38, padding: "0 14px 0 36px",
-                    border: "1px solid #e8ecf0", borderRadius: 8, fontSize: 13,
-                    background: "#f5f7fa", color: "#0f1b2d", outline: "none", fontFamily: "inherit",
+                    width: "100%", height: 38, padding: "0 12px 0 36px",
+                    border: "1px solid #e4e6ea", borderRadius: 8, fontSize: 13,
+                    background: "#f4f5f7", color: "#1a1d23", outline: "none", fontFamily: "inherit",
                   }}
                 />
               </div>
@@ -147,69 +151,87 @@ const Deals: React.FC = () => {
                   trackEvent("filter_change", { filter_type: "status" });
                 }}
                 style={{
-                  height: 38, padding: "0 14px", border: "1px solid #e8ecf0",
-                  borderRadius: 8, fontSize: 13, background: "#f5f7fa",
-                  color: "#0f1b2d", outline: "none", cursor: "pointer",
-                  minWidth: 140, fontFamily: "inherit",
+                  height: 38, padding: "0 32px 0 12px", border: "1px solid #e4e6ea",
+                  borderRadius: 8, fontSize: 13, background: "#f4f5f7",
+                  color: "#1a1d23", outline: "none", cursor: "pointer",
+                  fontFamily: "inherit", appearance: "none",
                 }}
               >
                 <option value="all">All Status</option>
-                <option value="INIT">Awaiting Fund</option>
-                <option value="FUNDED">Funded</option>
-                <option value="DELIVERED">Delivered</option>
-                <option value="DISPUTED">Disputed</option>
-                <option value="RESOLVED">Resolved</option>
-                <option value="RELEASED">Released</option>
-                <option value="REFUNDED">Refunded</option>
+                <option value="INIT">INIT</option>
+                <option value="FUNDED">FUNDED</option>
+                <option value="DELIVERED">DELIVERED</option>
+                <option value="DISPUTED">DISPUTED</option>
+                <option value="RESOLVED">RESOLVED</option>
+                <option value="RELEASED">RELEASED</option>
+                <option value="REFUNDED">REFUNDED</option>
               </select>
             </div>
           </div>
 
-          {/* Stats */}
+          {/* Stat cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
             {statCards.map((stat, i) => (
               <div key={i} style={{
-                background: "#fff", border: BORDER, borderRadius: 12, boxShadow: CARD_SHADOW,
-                padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10,
-                position: "relative", overflow: "hidden",
+                background: "#fff", border: "1px solid #e4e6ea", borderRadius: 12,
+                padding: 16, position: "relative", overflow: "hidden",
               }}>
                 <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: stat.border, borderRadius: "12px 12px 0 0" }} />
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7a90", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.5px", color: "#6b7280" }}>
                     {stat.label}
                   </div>
-                  <div style={{ width: 32, height: 32, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: stat.iconBg, color: stat.iconColor, flexShrink: 0 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", background: stat.iconBg, color: stat.iconColor }}>
                     {stat.icon}
                   </div>
                 </div>
-                <div style={{ fontSize: 26, fontWeight: 700, color: "#0f1b2d", lineHeight: 1 }}>
+                <div style={{ fontSize: 28, fontWeight: 600, letterSpacing: "-0.5px", color: "#1a1d23" }}>
                   {stat.value}
                 </div>
               </div>
             ))}
           </div>
 
-          {/* Deals list */}
-          <div style={{ background: "#fff", border: BORDER, borderRadius: 12, boxShadow: CARD_SHADOW, overflow: "hidden" }}>
-            <div style={{ padding: "20px 22px 16px", borderBottom: "1px solid #e8ecf0", display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+          {/* Deals panel — dark contrasting */}
+          <div style={{
+            background: "#111827",
+            borderRadius: 16,
+            overflow: "hidden",
+            boxShadow: DEALS_PANEL_SHADOW,
+          }}>
+            {/* Panel header — always dark */}
+            <div style={{
+              padding: "20px 24px 16px",
+              borderBottom: "1px solid #374151",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              background: "#111827",
+            }}>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "#0f1b2d" }}>Deals</div>
-                <div style={{ fontSize: 12, color: "#6b7a90", marginTop: 2 }}>
-                  {isLoading ? "Loading deals…" : `Showing ${filteredDeals.length} of ${total} deals`}
+                <div style={{ fontSize: 15, fontWeight: 600, color: "#f9fafb" }}>Deals</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#9ca3af", fontWeight: 450, marginTop: 2 }}>
+                  Showing
+                  <span style={{
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    background: "oklch(0.55 0.18 250)", color: "#fff",
+                    fontSize: 11, fontWeight: 600, borderRadius: 20, padding: "1px 8px", letterSpacing: "0.2px",
+                  }}>
+                    {isLoading ? "…" : `${filteredDeals.length} of ${total}`}
+                  </span>
+                  deals
                 </div>
               </div>
             </div>
 
             {isLoading ? (
-              <div style={{ padding: "60px 22px", textAlign: "center", color: "#6b7a90" }}>
-                <RefreshCw size={24} className="animate-spin" style={{ margin: "0 auto 12px", display: "block" }} />
-                Loading deals…
+              <div style={{ padding: "60px 24px", textAlign: "center", color: "#6b7280" }}>
+                <RefreshCw size={24} className="animate-spin" style={{ margin: "0 auto 12px", display: "block", color: "#4b5563" }} />
+                <span style={{ color: "#9ca3af" }}>Loading deals…</span>
               </div>
             ) : filteredDeals.length === 0 ? (
-              <div style={{ padding: "60px 22px", textAlign: "center", color: "#6b7a90" }}>
-                <Eye size={40} style={{ margin: "0 auto 14px", display: "block", color: "#c0cbd8" }} />
-                <div style={{ fontSize: 15, fontWeight: 600, color: "#0f1b2d", marginBottom: 6 }}>No deals found</div>
-                <div style={{ fontSize: 13 }}>
+              <div style={{ padding: "60px 24px", textAlign: "center" }}>
+                <Eye size={40} style={{ margin: "0 auto 14px", display: "block", color: "#374151" }} />
+                <div style={{ fontSize: 15, fontWeight: 600, color: "#f9fafb", marginBottom: 6 }}>No deals found</div>
+                <div style={{ fontSize: 13, color: "#9ca3af" }}>
                   {searchTerm || statusFilter !== "all"
                     ? "Try adjusting your filters or create a new deal."
                     : "You haven't created any deals yet."}
@@ -219,11 +241,12 @@ const Deals: React.FC = () => {
                     onClick={() => navigate("/escrow/step1")}
                     style={{
                       marginTop: 16, display: "inline-flex", alignItems: "center", gap: 6,
-                      padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 600,
-                      background: "#1a3a60", color: "#fff", border: "none", cursor: "pointer", fontFamily: "inherit",
+                      height: 36, padding: "0 16px", borderRadius: 8,
+                      background: "#1e293b", color: "#fff", border: "1px solid #374151",
+                      fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
                     }}
                   >
-                    <Plus size={14} /> Create First Deal
+                    <Plus size={13} /> Create First Deal
                   </button>
                 )}
               </div>
@@ -245,25 +268,25 @@ const Deals: React.FC = () => {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 28 }}>
               <button
                 onClick={() => setPage(Math.max(0, page - 1))}
                 disabled={page === 0}
                 style={{
-                  padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 600,
-                  background: "#fff", border: BORDER, color: "#0f1b2d",
+                  height: 36, padding: "0 14px", borderRadius: 8, fontSize: 13, fontWeight: 500,
+                  background: "#fff", border: "1px solid #e4e6ea", color: "#6b7280",
                   cursor: page === 0 ? "default" : "pointer", opacity: page === 0 ? 0.4 : 1, fontFamily: "inherit",
                 }}
               >
                 Previous
               </button>
-              <span style={{ fontSize: 13, color: "#6b7a90" }}>Page {page + 1} of {totalPages}</span>
+              <span style={{ fontSize: 13, color: "#6b7280" }}>Page {page + 1} of {totalPages}</span>
               <button
                 onClick={() => setPage(page + 1)}
                 disabled={(page + 1) * pageSize >= total}
                 style={{
-                  padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 600,
-                  background: "#fff", border: BORDER, color: "#0f1b2d",
+                  height: 36, padding: "0 14px", borderRadius: 8, fontSize: 13, fontWeight: 500,
+                  background: "#fff", border: "1px solid #e4e6ea", color: "#6b7280",
                   cursor: (page + 1) * pageSize >= total ? "default" : "pointer",
                   opacity: (page + 1) * pageSize >= total ? 0.4 : 1, fontFamily: "inherit",
                 }}
@@ -290,7 +313,7 @@ const DealRowItem: React.FC<DealRowItemProps> = ({ deal, userWallet, isLast, onC
   const [hovered, setHovered] = useState(false);
   const isBuyer = userWallet === deal.buyer_wallet;
   const counterparty = isBuyer ? deal.seller_wallet : deal.buyer_wallet;
-  const badge = STATUS_BADGE[deal.status] ?? { label: deal.status, style: { background: "#e8ecf0", color: "#6b7a90" } };
+  const badge = STATUS_BADGE[deal.status] ?? { label: deal.status, bg: "oklch(0.28 0.02 250)", color: "oklch(0.75 0.06 250)", border: "1px solid oklch(0.38 0.04 250)" };
   const title = deal.title?.trim() || `Deal ${deal.id.slice(0, 8)}…`;
   const createdDate = deal.created_at ? new Date(deal.created_at).toLocaleDateString() : "—";
   const deadline = deal.deliver_deadline ? new Date(deal.deliver_deadline).toLocaleDateString() : null;
@@ -301,33 +324,33 @@ const DealRowItem: React.FC<DealRowItemProps> = ({ deal, userWallet, isLast, onC
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        display: "flex", alignItems: "center", padding: "18px 22px",
-        borderBottom: isLast ? "none" : "1px solid #e8ecf0",
-        cursor: "pointer", gap: 16, background: hovered ? "#f9fbfc" : "#fff",
-        transition: "background 0.12s",
+        display: "flex", alignItems: "center", padding: "18px 24px",
+        borderBottom: isLast ? "none" : "1px solid #2d3748",
+        cursor: "pointer", gap: 16,
+        background: hovered ? "#374151" : "transparent",
+        transition: "background 0.15s",
       }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
           <span style={{
-            display: "inline-flex", alignItems: "center",
-            padding: "3px 9px", borderRadius: 5,
-            fontSize: 11, fontWeight: 700, letterSpacing: "0.03em", textTransform: "uppercase",
-            ...badge.style,
+            fontSize: 10, fontWeight: 700, letterSpacing: "0.5px",
+            borderRadius: 5, padding: "2px 7px", textTransform: "uppercase",
+            background: badge.bg, color: badge.color, border: badge.border,
           }}>
             {badge.label}
           </span>
-          <span style={{ fontSize: 12, fontWeight: 500, color: "#6b7a90" }}>
+          <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 450 }}>
             {isBuyer ? "Buyer" : "Seller"}
           </span>
         </div>
-        <div style={{ fontSize: 17, fontWeight: 700, color: "#0f1b2d", marginBottom: 2 }}>
+        <div style={{ fontSize: 17, fontWeight: 600, color: "#f9fafb", marginBottom: 3, letterSpacing: "-0.2px" }}>
           {formatUsd(deal.price_usd)}
         </div>
-        <div style={{ fontSize: 13, fontWeight: 500, color: "#0f1b2d", marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div style={{ fontSize: 13, color: "oklch(0.75 0.04 250)", fontWeight: 450, marginBottom: 5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {title}
         </div>
-        <div style={{ fontSize: 12, color: "#6b7a90", lineHeight: 1.7 }}>
+        <div style={{ fontSize: 11, color: "#6b7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           <span>ID: {deal.id.slice(0, 8)}…</span>
           <span> · Counterparty: {shortAddress(counterparty)}</span>
           <span> · Created: {createdDate}</span>
@@ -335,10 +358,10 @@ const DealRowItem: React.FC<DealRowItemProps> = ({ deal, userWallet, isLast, onC
         </div>
       </div>
       <ArrowRight
-        size={18}
+        size={16}
         style={{
           flexShrink: 0,
-          color: hovered ? "#0ba5c0" : "#6b7a90",
+          color: hovered ? "#f9fafb" : "#6b7280",
           transform: hovered ? "translateX(3px)" : "translateX(0)",
           transition: "transform 0.15s, color 0.15s",
         }}
