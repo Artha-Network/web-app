@@ -21,15 +21,22 @@ const SANITIZE_CONFIG = {
   ALLOWED_ATTR: ["class", "href", "target", "rel"],
 };
 
+const stripCodeFence = (s: string) => {
+  const fence = s.match(/```(?:html)?\s*([\s\S]*?)```/i);
+  return fence ? fence[1] : s;
+};
+
 const ContractView: FC<ContractViewProps> = ({ contract, className }) => {
-  const isHtml = useMemo(() => /^\s*<[a-z!]/i.test(contract), [contract]);
-
-  const sanitized = useMemo(
-    () => (isHtml ? DOMPurify.sanitize(contract, SANITIZE_CONFIG) : ""),
-    [contract, isHtml]
-  );
-
   const wrapperClass = `prose dark:prose-invert max-w-none contract-view ${className ?? ""}`;
+
+  const { isHtml, sanitized } = useMemo(() => {
+    if (!contract) return { isHtml: false, sanitized: "" };
+    const unfenced = stripCodeFence(contract).trim();
+    const firstTagIdx = unfenced.search(/<[a-z!]/i);
+    if (firstTagIdx < 0) return { isHtml: false, sanitized: "" };
+    const html = unfenced.slice(firstTagIdx);
+    return { isHtml: true, sanitized: DOMPurify.sanitize(html, SANITIZE_CONFIG) };
+  }, [contract]);
 
   if (isHtml) {
     return (
