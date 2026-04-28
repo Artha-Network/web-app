@@ -241,3 +241,17 @@ All colors MUST be HSL.
 .shadow-secondary-custom { box-shadow: var(--shadow-secondary); }
 
 .font-mono-data { font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace; }
+
+.contract-view .contract > h1:first-child { margin-top: 0; }
+.contract-view h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; }
+.contract-view h2 { font-size: 1.15rem; font-weight: 600; margin-top: 1.5rem; padding-bottom: 0.35rem; border-bottom: 1px solid hsl(var(--border)); }
+.contract-view h3 { font-size: 1rem; font-weight: 600; margin-top: 1rem; }
+.contract-view p, .contract-view li { line-height: 1.65; }
+.contract-view ul, .contract-view ol { padding-left: 1.25rem; }
+.contract-view code { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.85em; padding: 0.1rem 0.35rem; border-radius: 4px; background: hsl(var(--muted)); }
+.contract-view pre { background: hsl(var(--muted)); padding: 0.75rem 1rem; border-radius: 8px; overflow-x: auto; }
+.contract-view hr { margin: 1.5rem 0; border: 0; border-top: 1px solid hsl(var(--border)); }
+.contract-view table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+.contract-view th, .contract-view td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid hsl(var(--border)); }
+.contract-view thead th { background: hsl(var(--muted)); font-weight: 600; }
+.contract-view blockquote { border-left: 3px solid hsl(var(--primary) / 0.5); padding-left: 1rem; color: hsl(var(--muted-foreground)); margin: 1rem 0; }

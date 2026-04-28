@@ -1,7 +1,7 @@
 import { FC, useEffect, useRef, useState } from "react";
 import { API_BASE } from "@/lib/config";
 import { useNavigate } from "react-router-dom";
-import ReactMarkdown from "react-markdown";
+import ContractView from "@/components/molecules/ContractView";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -162,8 +162,8 @@ const Step2: FC = () => {
                 AI drafted
               </span>
             </div>
-            <CardContent className="p-6 sm:p-8 prose dark:prose-invert max-w-none">
-              <ReactMarkdown>{data.contract}</ReactMarkdown>
+            <CardContent className="p-6 sm:p-8">
+              <ContractView contract={data.contract} />
             </CardContent>
           </Card>
 
