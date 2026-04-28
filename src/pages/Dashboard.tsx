@@ -21,6 +21,7 @@ import {
   Clock,
   AlertCircle,
   Trash2,
+  LogOut,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -126,7 +127,7 @@ const Dashboard: FC = () => {
   const { publicKey, connected, wallet } = useWallet();
   const { connection } = useConnection();
   const { trackEvent } = useEvent();
-  const { isAuthenticated, isLoading: isAuthLoading, user: authUser } = useAuth();
+  const { isAuthenticated, isLoading: isAuthLoading, user: authUser, logout } = useAuth();
   const { openWalletModal } = useModalContext();
 
   const [solBalance, setSolBalance] = useState<number | null>(null);
@@ -186,6 +187,11 @@ const Dashboard: FC = () => {
   const handleRefresh = () => {
     trackEvent("wallet_refresh", { wallet_address: publicKey?.toString() });
     fetchWalletData();
+  };
+
+  const handleSignOut = async () => {
+    await logout();
+    navigate("/", { replace: true });
   };
 
   const deleteDeal = useDeleteDeal();
@@ -282,6 +288,14 @@ const Dashboard: FC = () => {
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-primary text-primary-foreground hover:opacity-90 transition-opacity font-semibold text-sm shadow-primary-custom"
                 >
                   Review pending <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
+              {isAuthenticated && (
+                <button
+                  onClick={handleSignOut}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-destructive/30 text-destructive bg-card hover:bg-destructive/10 transition-colors font-semibold text-sm"
+                >
+                  <LogOut className="w-4 h-4" /> Sign out
                 </button>
               )}
             </div>
