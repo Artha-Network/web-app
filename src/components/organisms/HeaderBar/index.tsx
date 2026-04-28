@@ -1,6 +1,6 @@
-import { FC } from "react";
+import { FC, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Bell, Diamond } from "lucide-react";
+import { Bell, Diamond, LogOut } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
@@ -8,6 +8,7 @@ export interface HeaderBarProps {
   readonly userName: string;
   readonly avatarUrl?: string;
   readonly onNotificationsClick?: () => void;
+  readonly onLogout?: () => void;
 }
 
 /**
@@ -19,7 +20,29 @@ export const HeaderBar: FC<HeaderBarProps> = ({
   userName,
   avatarUrl,
   onNotificationsClick,
+  onLogout,
 }) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [menuOpen]);
+
   return (
     <header
       className={cn(
@@ -67,14 +90,48 @@ export const HeaderBar: FC<HeaderBarProps> = ({
           <Bell className="w-5 h-5" />
         </button>
 
-        <Avatar className="size-10 shadow-sm border-2 border-blue-200">
-          <AvatarImage
-            src={avatarUrl}
-            alt={`${userName} avatar`}
-            className="object-cover"
-          />
-          <AvatarFallback>{userName?.[0] ?? "U"}</AvatarFallback>
-        </Avatar>
+        <div className="relative" ref={menuRef}>
+          <button
+            type="button"
+            aria-label="Open account menu"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((v) => !v)}
+            className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+          >
+            <Avatar className="size-10 shadow-sm border-2 border-blue-200">
+              <AvatarImage
+                src={avatarUrl}
+                alt={`${userName} avatar`}
+                className="object-cover"
+              />
+              <AvatarFallback>{userName?.[0] ?? "U"}</AvatarFallback>
+            </Avatar>
+          </button>
+          {menuOpen && (
+            <div
+              role="menu"
+              className="absolute right-0 mt-2 w-56 rounded-lg border border-gray-200 bg-white shadow-lg z-50 overflow-hidden"
+            >
+              <div className="px-4 py-3 border-b border-gray-100">
+                <div className="text-xs uppercase tracking-wider text-gray-500">Signed in as</div>
+                <div className="text-sm font-semibold text-gray-900 truncate">{userName}</div>
+              </div>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onLogout?.();
+                }}
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                Sign out
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

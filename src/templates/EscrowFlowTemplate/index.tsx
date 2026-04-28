@@ -1,6 +1,7 @@
 import { FC, PropsWithChildren } from "react";
 import { useNavigate } from "react-router-dom";
 import HeaderBar from "@/components/organisms/HeaderBar";
+import { useAuth } from "@/context/AuthContext";
 
 export interface EscrowFlowTemplateProps extends PropsWithChildren {
   readonly userName?: string;
@@ -15,6 +16,12 @@ export const EscrowFlowTemplate: FC<EscrowFlowTemplateProps> = ({
   children,
 }) => {
   const navigate = useNavigate();
+  const { logout } = useAuth();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/", { replace: true });
+  };
 
   return (
     <div
@@ -22,7 +29,11 @@ export const EscrowFlowTemplate: FC<EscrowFlowTemplateProps> = ({
       style={{ fontFamily: 'Inter, "Noto Sans", sans-serif' }}
     >
       <div className="layout-container flex h-full grow flex-col">
-        <HeaderBar userName={userName} onNotificationsClick={() => navigate("/notifications")} />
+        <HeaderBar
+          userName={userName}
+          onNotificationsClick={() => navigate("/notifications")}
+          onLogout={handleLogout}
+        />
         <main className="flex-1 px-4 sm:px-6 py-10">
           <div className="mx-auto max-w-6xl">
             <div className="text-center">

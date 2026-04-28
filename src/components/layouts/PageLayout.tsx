@@ -17,7 +17,7 @@ export const PageLayout: FC<PageLayoutProps> = ({
   children, 
   showHeader = true 
 }) => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { publicKey } = useWallet();
   const navigate = useNavigate();
 
@@ -28,12 +28,18 @@ export const PageLayout: FC<PageLayoutProps> = ({
     navigate("/notifications");
   };
 
+  const handleLogout = async () => {
+    await logout();
+    navigate("/", { replace: true });
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {showHeader && (
-        <HeaderBar 
-          userName={userName} 
+        <HeaderBar
+          userName={userName}
           onNotificationsClick={handleNotificationsClick}
+          onLogout={handleLogout}
         />
       )}
       <main className="flex-1">
