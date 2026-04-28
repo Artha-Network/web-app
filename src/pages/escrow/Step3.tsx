@@ -110,8 +110,10 @@ const Step3: FC = () => {
         : undefined;
 
       const isBuyer = data.role === "buyer";
-      const buyerEmail = isBuyer ? data.userEmail || undefined : data.counterpartyEmail?.trim() || undefined;
-      const sellerEmail = isBuyer ? data.counterpartyEmail?.trim() || undefined : data.userEmail || undefined;
+      const userEmail = data.userEmail?.trim() || undefined;
+      const counterpartyEmail = data.counterpartyEmail?.trim() || undefined;
+      const buyerEmail = isBuyer ? userEmail : counterpartyEmail;
+      const sellerEmail = isBuyer ? counterpartyEmail : userEmail;
 
       initiateEscrow(
         {
