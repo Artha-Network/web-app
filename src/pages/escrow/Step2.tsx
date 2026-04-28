@@ -1,4 +1,4 @@
-import { FC, useEffect, useState } from "react";
+import { FC, useEffect, useRef, useState } from "react";
 import { API_BASE } from "@/lib/config";
 import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
@@ -26,8 +26,20 @@ const Step2: FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inFlightRef = useRef(false);
+  const lastCallAtRef = useRef(0);
 
   const generateContract = async () => {
+    // Guard 1: a request is already in flight — block duplicates from StrictMode double-mount or rage-clicks.
+    if (inFlightRef.current) return;
+    // Guard 2: client-side cooldown so the user can't burn credits by spamming Regenerate.
+    const now = Date.now();
+    if (now - lastCallAtRef.current < 5_000) {
+      setError("Please wait a few seconds before regenerating.");
+      return;
+    }
+    lastCallAtRef.current = now;
+    inFlightRef.current = true;
     setLoading(true);
     setError(null);
     updateData({ contract: "", questions: [] });
@@ -70,6 +82,7 @@ const Step2: FC = () => {
       setError(`Failed to generate contract: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setLoading(false);
+      inFlightRef.current = false;
     }
   };
 
