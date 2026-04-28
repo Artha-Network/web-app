@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useEvent } from "@/hooks/useEvent";
+import ContractView from "@/components/molecules/ContractView";
 import { useDeal, useResolution } from "@/hooks/useDeals";
 import { useAction } from "@/hooks/useAction";
 import { useQueryClient } from "@tanstack/react-query";
@@ -440,7 +441,7 @@ const ResolutionPage: FC = () => {
             </CardHeader>
             <CardContent>
               <div className="bg-muted rounded-lg p-4 max-h-[300px] overflow-y-auto">
-                <pre className="text-sm whitespace-pre-wrap font-sans leading-relaxed">{deal.contract}</pre>
+                <ContractView contract={deal.contract} className="text-sm" />
               </div>
             </CardContent>
           </Card>

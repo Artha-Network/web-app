@@ -19,6 +19,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useDeal, useResolution } from "@/hooks/useDeals";
 import { useAction } from "@/hooks/useAction";
 import PageLayout from "@/components/layouts/PageLayout";
+import ContractView from "@/components/molecules/ContractView";
 import { Skeleton } from "@/components/ui/skeleton";
 import { API_BASE } from "@/lib/config";
 import { formatDateTime, formatUsd, shortAddress } from "@/utils/format";
@@ -239,7 +240,7 @@ const Dispute: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="bg-muted/50 rounded-lg p-4 max-h-[400px] overflow-y-auto border border-border/60">
-              <pre className="text-sm whitespace-pre-wrap font-sans leading-relaxed">{deal.contract}</pre>
+              <ContractView contract={deal.contract} className="text-sm" />
             </div>
           </CardContent>
         </Card>

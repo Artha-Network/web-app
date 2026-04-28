@@ -23,6 +23,7 @@ import {
   Eye,
 } from "lucide-react";
 import { useWallet } from "@solana/wallet-adapter-react";
+import ContractView from "@/components/molecules/ContractView";
 import { useEvent } from "@/hooks/useEvent";
 import { useDeal } from "@/hooks/useDeals";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -239,7 +240,7 @@ const EvidencePage: FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="bg-muted rounded-lg p-4 max-h-[300px] overflow-y-auto">
-                  <pre className="text-sm whitespace-pre-wrap font-sans leading-relaxed">{deal.contract}</pre>
+                  <ContractView contract={deal.contract} className="text-sm" />
                 </div>
               </CardContent>
             </Card>
